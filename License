@@ -1,0 +1,18 @@
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contact
+
+- **Author**: Dickson
+- **Email**: hello@ojochogwu.dev
+- **GitHub**: [@Ojochogwu866](https://github.com/Ojochogwu866)
+- **Issues**: [GitHub Issues](https://github.com/Ojochogwu866/amc-predictor/issues)
+
+## Acknowledgments
+
+- **RDKit**: Chemical informatics toolkit
+- **Mordred**: Molecular descriptor calculation
+- **FastAPI**: Modern Python web framework
+- **scikit-learn**: Machine learning library
+- **PubChem**: Chemical database (NCBI)

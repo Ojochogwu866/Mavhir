@@ -1,0 +1,11 @@
+name,smiles,cas_number,category
+Caffeine,CN1C=NC2=C1C(=O)N(C(=O)N2C)C,58-08-2,Drug
+Aspirin,CC(=O)OC1=CC=CC=C1C(=O)O,50-78-2,Drug
+Ibuprofen,CC(C)CC1=CC=C(C=C1)C(C(=O)O)C,15687-27-1,Drug
+Paracetamol,CC(=O)NC1=CC=C(C=C1)O,103-90-2,Drug
+Nicotine,CN1CCCC1C2=CN=CC=C2,54-11-5,Alkaloid
+Glucose,C([C@@H]1[C@H]([C@@H]([C@H]([C@H](O1)O)O)O)O)O,50-99-7,Sugar
+Sucrose,C([C@@H]1[C@H]([C@@H]([C@H]([C@H](O1)O[C@]2([C@H]([C@@H]([C@H](O2)CO)O)O)CO)O)O)O)O,57-50-1,Sugar
+Citric acid,C(C(=O)O)C(CC(=O)O)(C(=O)O)O,77-92-9,Acid
+Vanillin,COC1=C(C=CC(=C1)C=O)O,121-33-5,Flavor
+Menthol,CC(C)[C@@H]1CC[C@@H](CC1)O,2216-51-5,Terpene
