@@ -1,7 +1,9 @@
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
+from functools import wraps
+import time
 
 
-class ToxityPredictorError(Exception):
+class ToxicityPredictorError(Exception):
     """
     Base exception for all toxicity predictor errors
     """
@@ -19,7 +21,6 @@ class ToxityPredictorError(Exception):
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert Exception to dictionary for API responses."""
-
         return {
             "error": self.error_code,
             "message": self.message,
@@ -27,14 +28,13 @@ class ToxityPredictorError(Exception):
         }
 
 
-class ChemicalProcessingError(ToxityPredictorError):
+class ChemicalProcessingError(ToxicityPredictorError):
     """Raised when chemical structure processing fails"""
-
     pass
 
 
-class InvalidSmilesError(ChemicalProcessingError):
-    """Raised when smiles string is invalid or cannnot be parsed"""
+class InvalidSMILESError(ChemicalProcessingError):
+    """Raised when SMILES string is invalid or cannot be parsed"""
 
     def __init__(self, smiles: str, details: Optional[str] = None) -> None:
         message = f"Invalid SMILES: '{smiles}'"
@@ -52,24 +52,26 @@ class MolecularStandardizationError(ChemicalProcessingError):
     """Raised when molecular standardization fails"""
 
     def __init__(self, smiles: str, step: str, details: Optional[str] = None) -> None:
-        message - f"Standardixation failed at step '{step}' for SMILES: '{smiles}'"
+        message = f"Standardization failed at step '{step}' for SMILES: '{smiles}'"
         if details:
             message += f" - {details}"
 
         super().__init__(
-            message, context={"smiles": smiles, "failed_Step": step, "details": details}
+            message, context={"smiles": smiles, "failed_step": step, "details": details}
         )
 
 
-class DescriptorCalculationError(ToxityPredictorError):
-
+class DescriptorCalculationError(ToxicityPredictorError):
+    """Base class for descriptor calculation errors"""
     pass
 
 
 class DescriptorTimeoutError(DescriptorCalculationError):
+    """Raised when descriptor calculation times out"""
+    
     def __init__(self, smiles: str, timeout_seconds: int) -> None:
         message = f"Descriptor calculation timed out after {timeout_seconds}s for SMILES: {smiles}"
-        super().__init__(message, context={"missing_descriptors"})
+        super().__init__(message, context={"smiles": smiles, "timeout_seconds": timeout_seconds})
 
 
 class MissingDescriptorsError(DescriptorCalculationError):
@@ -80,9 +82,8 @@ class MissingDescriptorsError(DescriptorCalculationError):
         super().__init__(message, context={"missing_descriptors": missing_descriptors})
 
 
-class ModelError(ToxityPredictorError):
+class ModelError(ToxicityPredictorError):
     """Base class for ML model-related errors."""
-
     pass
 
 
@@ -128,9 +129,8 @@ class UnsupportedModelError(ModelError):
         )
 
 
-class PubChemError(ToxityPredictorError):
+class PubChemError(ToxicityPredictorError):
     """Base class for PubChem API Errors"""
-
     pass
 
 
@@ -164,9 +164,7 @@ class PubChemNotFoundError(PubChemError):
 
 
 class PubChemRateLimitError(PubChemError):
-    """
-    Raised when PubChem rate limit is exceeded.
-    """
+    """Raised when PubChem rate limit is exceeded."""
 
     def __init__(self, retry_after: Optional[int] = None) -> None:
         message = "PubChem rate limit exceeded"
@@ -176,16 +174,13 @@ class PubChemRateLimitError(PubChemError):
         super().__init__(message, context={"retry_after": retry_after})
 
 
-class BatchProcessingError(ToxityPredictorError):
+class BatchProcessingError(ToxicityPredictorError):
     """Raised when batch processing fails"""
-
     pass
 
 
 class BatchSizeError(BatchProcessingError):
-    """
-    Raised when batch size exceeds limits.
-    """
+    """Raised when batch size exceeds limits."""
 
     def __init__(self, batch_size: int, max_size: int) -> None:
         message = f"Batch size {batch_size} exceeds maximum allowed size {max_size}"
@@ -204,18 +199,13 @@ class BatchValidationError(BatchProcessingError):
         )
 
 
-class ConfigurationError(ToxityPredictorError):
-    """
-    Raised when configuration is invalid or missing.
-    """
-
+class ConfigurationError(ToxicityPredictorError):
+    """Raised when configuration is invalid or missing."""
     pass
 
 
-class ServiceUnavailableError(ToxityPredictorError):
-    """
-    Raised when a required service is unavailable.
-    """
+class ServiceUnavailableError(ToxicityPredictorError):
+    """Raised when a required service is unavailable."""
 
     def __init__(self, service_name: str, details: Optional[str] = None) -> None:
         message = f"Service '{service_name}' is unavailable"
@@ -227,29 +217,57 @@ class ServiceUnavailableError(ToxityPredictorError):
         )
 
 
-def handle_rdkit_errors(func):
+def handle_rdkit_errors(func: Callable) -> Callable:
     """
     Decorator to convert RDKit errors to our custom exceptions.
     """
-
+    @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
         except Exception as e:
             if "SMILES" in str(e).upper():
-                raise InvalidSmilesError(str(args[0]) if args else "unknown", str(e))
+                smiles_arg = str(args[0]) if args else "unknown"
+                raise InvalidSMILESError(smiles_arg, str(e)) from e
             else:
                 raise ChemicalProcessingError(f"RDKit operation failed: {e}") from e
-
     return wrapper
 
 
-def create_error_response(exception: ToxityPredictorError) -> Dict[str, Any]:
+def create_error_response(exception: ToxicityPredictorError) -> Dict[str, Any]:
     """
     Create standardized error response for API endpoints.
     """
     return {
         "success": False,
         "error": exception.to_dict(),
-        "timestamp": "2024-01-01T00:00:00Z",
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+
+MoleculeStandardizationError = MolecularStandardizationError
+
+__all__ = [
+    "ToxicityPredictorError",
+    "ChemicalProcessingError", 
+    "InvalidSMILESError",
+    "MolecularStandardizationError",
+    "MoleculeStandardizationError",
+    "DescriptorCalculationError",
+    "DescriptorTimeoutError", 
+    "MissingDescriptorsError",
+    "ModelError",
+    "ModelLoadError",
+    "ModelPredictionError",
+    "UnsupportedModelError",
+    "PubChemError",
+    "PubChemAPIError",
+    "PubChemNotFoundError", 
+    "PubChemRateLimitError",
+    "BatchProcessingError",
+    "BatchSizeError",
+    "BatchValidationError",
+    "ConfigurationError",
+    "ServiceUnavailableError",
+    "handle_rdkit_errors",
+    "create_error_response",
+]

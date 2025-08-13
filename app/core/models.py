@@ -2,18 +2,19 @@ from typing import List, Dict, Any, Optional, Literal
 from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
+import re
 
 
 class ToxicityEndpoint(str, Enum):
-    AMES_MUTAGENECITY = "ames_mutagenecity"
-    CARCINOGENECITY = "carcinogeencity"
+    AMES_MUTAGENICITY = "ames_mutagenicity"
+    CARCINOGENICITY = "carcinogenicity"
 
 
 class PredictionClass(str, Enum):
     MUTAGENIC = "mutagenic"
     NON_MUTAGENIC = "non_mutagenic"
-    CARCONOGENIC = "carcinogenic"
-    NON_cARCINOGENIC = "non_carcinogenic"
+    CARCINOGENIC = "carcinogenic"
+    NON_CARCINOGENIC = "non_carcinogenic"
 
 
 class ConfidenceLevel(str, Enum):
@@ -53,21 +54,21 @@ class ErrorResponse(BaseResponse):
 
 # Molecular property models
 class MolecularProperties(BaseModel):
-    """Base molecualr properties calculated from chemical structure"""
+    """Base molecular properties calculated from chemical structure"""
 
     molecular_weight: float = Field(description="Molecular weight in Da", ge=0)
-    logp: float = Field(description="Lipophilicity (LogP)", ge=-1, le=10)
-    tpsa: float = Field(description="Topological polar surface area in U", ge=0)
+    logp: float = Field(description="Lipophilicity (LogP)", ge=-10, le=10)
+    tpsa: float = Field(description="Topological polar surface area in Ų", ge=0)
     num_heavy_atoms: int = Field(
         description="Number of heavy (non-hydrogen) atoms", ge=0
     )
     num_aromatic_rings: int = Field(description="Number of aromatic rings", ge=0)
-    num_of_rotatable_bonds: int = Field(description="Number of rotatable bonds", ge=0)
-    num_hbd: int = Field(description="Number of hydrogen bond donors")
-    num_hba: int = Field(description="Number of hydrogen bond acceptors")
+    num_rotatable_bonds: int = Field(description="Number of rotatable bonds", ge=0)
+    num_hbd: int = Field(description="Number of hydrogen bond donors", ge=0)
+    num_hba: int = Field(description="Number of hydrogen bond acceptors", ge=0)
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "molecular_weight": 46.07,
                 "logp": -0.31,
@@ -79,6 +80,7 @@ class MolecularProperties(BaseModel):
                 "num_hba": 1,
             }
         }
+    }
 
 
 class DrugLikenessAssessment(BaseModel):
@@ -99,8 +101,8 @@ class DrugLikenessAssessment(BaseModel):
         None, description="Details of rule violations"
     )
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "lipinski_violations": 0,
                 "lipinski_passed": True,
@@ -110,6 +112,7 @@ class DrugLikenessAssessment(BaseModel):
                 "violation_details": {},
             }
         }
+    }
 
 
 class SinglePrediction(BaseModel):
@@ -120,8 +123,8 @@ class SinglePrediction(BaseModel):
     probability: float = Field(description="Probability score", ge=0.0, le=1.0)
     confidence: ConfidenceLevel = Field(description="Prediction Confidence Level")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "endpoint": "ames_mutagenicity",
                 "prediction": "non_mutagenic",
@@ -129,6 +132,7 @@ class SinglePrediction(BaseModel):
                 "confidence": "high",
             }
         }
+    }
 
 
 class PredictionResults(BaseModel):
@@ -141,18 +145,18 @@ class PredictionResults(BaseModel):
         None, description="Carcinogenicity prediction"
     )
 
-    @field_validator("*", pre=True)
-    def ensure_not_empty(cls, v):
-        """Ensure at least one prediction is present."""
-        return v
-
-    @model_validator
-    def ensure_at_least_one_prediction(cls, values):
+    @model_validator(mode='after')
+    @classmethod
+    def ensure_at_least_one_prediction(cls, model_instance: 'PredictionResults') -> 'PredictionResults':
         """Ensure at least one prediction endpoint is provided."""
-        predictions = [v for v in values.values() if v is not None]
+        predictions = [
+            getattr(model_instance, field_name) 
+            for field_name in ['ames_mutagenicity', 'carcinogenicity']
+            if getattr(model_instance, field_name) is not None
+        ]
         if not predictions:
             raise ValueError("At least one prediction must be provided")
-        return values
+        return model_instance
 
 
 class SMILESPredictionRequest(BaseModel):
@@ -162,7 +166,6 @@ class SMILESPredictionRequest(BaseModel):
         description="SMILES string representing the chemical structure",
         min_length=1,
         max_length=1000,
-        regex=r"^[A-Za-z0-9@+\-\[\]()=#%/\\\.]+$",
     )
     endpoints: Optional[List[ToxicityEndpoint]] = Field(
         None, description="Specific toxicity endpoints to predict (default: all)"
@@ -178,24 +181,23 @@ class SMILESPredictionRequest(BaseModel):
     )
 
     @field_validator("smiles")
-    def validate_smiles_format(cls, v):
+    @classmethod
+    def validate_smiles_format(cls, v: str) -> str:
         """Basic SMILES format validation."""
         v = v.strip()
         if not v:
             raise ValueError("SMILES cannot be empty")
 
-        invalid_chars = set(v) - set(
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@+\\-[]()=#%/\\."
-        )
-        if invalid_chars:
-            raise ValueError(
-                f"SMILES contains invalid characters: {', '.join(sorted(invalid_chars))}"
-            )
+        # Valid SMILES characters pattern
+        pattern = r"^[A-Za-z0-9@+\-\[\]()=#%/\\.]+$"
+        if not re.match(pattern, v):
+            raise ValueError("SMILES contains invalid characters")
 
         return v
 
     @field_validator("endpoints")
-    def validate_endpoints(cls, v):
+    @classmethod
+    def validate_endpoints(cls, v: Optional[List[ToxicityEndpoint]]) -> Optional[List[ToxicityEndpoint]]:
         """Validate endpoint list."""
         if v is not None:
             if not v:
@@ -204,8 +206,8 @@ class SMILESPredictionRequest(BaseModel):
                 raise ValueError("Duplicate endpoints not allowed")
         return v
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "smiles": "CCO",
                 "endpoints": ["ames_mutagenicity", "carcinogenicity"],
@@ -214,6 +216,7 @@ class SMILESPredictionRequest(BaseModel):
                 "include_drug_likeness": True,
             }
         }
+    }
 
 
 class BatchPredictionRequest(BaseModel):
@@ -221,8 +224,8 @@ class BatchPredictionRequest(BaseModel):
 
     smiles_list: List[str] = Field(
         description="List of SMILES strings",
-        min_items=1,
-        max_items=1000,  # Will be overridden by config
+        min_length=1,
+        max_length=1000,  # Will be overridden by config
     )
     endpoints: Optional[List[ToxicityEndpoint]] = Field(
         None, description="Specific toxicity endpoints to predict (default: all)"
@@ -242,19 +245,22 @@ class BatchPredictionRequest(BaseModel):
     )
 
     @field_validator("smiles_list")
-    def validate_smiles_list(cls, v):
+    @classmethod
+    def validate_smiles_list(cls, v: List[str]) -> List[str]:
         """Validate SMILES list."""
         if not v:
             raise ValueError("SMILES list cannot be empty")
 
+        validated_smiles = []
         for i, smiles in enumerate(v):
             if not isinstance(smiles, str) or not smiles.strip():
                 raise ValueError(f"SMILES at index {i} must be a non-empty string")
+            validated_smiles.append(smiles.strip())
 
-        return [smiles.strip() for smiles in v]
+        return validated_smiles
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "smiles_list": ["CCO", "CC(=O)O", "c1ccccc1"],
                 "endpoints": ["ames_mutagenicity"],
@@ -264,14 +270,15 @@ class BatchPredictionRequest(BaseModel):
                 "fail_on_error": False,
             }
         }
+    }
 
 
 class CompoundPredictionResponse(BaseModel):
     """Single compound prediction"""
 
     smiles: str = Field(description="Input smiles string")
-    cannonical_smiles: str = Field(description="Cannonical smiles presentation")
-    molecular_formala: Optional[str] = Field(None, description="Molecular formula")
+    canonical_smiles: str = Field(description="Canonical smiles representation")
+    molecular_formula: Optional[str] = Field(None, description="Molecular formula")
 
     predictions: PredictionResults = Field(description="Toxicity predictions")
 
@@ -286,10 +293,10 @@ class CompoundPredictionResponse(BaseModel):
     )
 
     success: bool = Field(description="Whether processing was successful")
-    errors: Optional[list[str]] = Field(None, description="Processing errors if any")
+    errors: Optional[List[str]] = Field(None, description="Processing errors if any")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "smiles": "CCO",
                 "canonical_smiles": "CCO",
@@ -322,6 +329,7 @@ class CompoundPredictionResponse(BaseModel):
                 "errors": None,
             }
         }
+    }
 
 
 class SMILESPredictionResponse(BaseResponse):
@@ -329,8 +337,8 @@ class SMILESPredictionResponse(BaseResponse):
 
     data: CompoundPredictionResponse = Field(description="Prediction results")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "success": True,
                 "timestamp": "2024-01-01T12:00:00Z",
@@ -350,6 +358,7 @@ class SMILESPredictionResponse(BaseResponse):
                 },
             }
         }
+    }
 
 
 class BatchResultItem(BaseModel):
@@ -381,8 +390,8 @@ class BatchPredictionResponse(BaseResponse):
     results: List[BatchResultItem] = Field(description="Individual prediction results")
     summary: BatchPredictionSummary = Field(description="Batch processing summary")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "success": True,
                 "timestamp": "2024-01-01T12:00:00Z",
@@ -415,6 +424,7 @@ class BatchPredictionResponse(BaseResponse):
                 },
             }
         }
+    }
 
 
 class ChemicalLookupResponse(BaseResponse):
@@ -431,8 +441,8 @@ class ChemicalLookupResponse(BaseResponse):
     synonyms: Optional[List[str]] = Field(None, description="Alternative names")
     found: bool = Field(description="Whether compound was found in database")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "success": True,
                 "timestamp": "2024-01-01T12:00:00Z",
@@ -447,6 +457,7 @@ class ChemicalLookupResponse(BaseResponse):
                 "found": True,
             }
         }
+    }
 
 
 class ServiceStatus(BaseModel):
@@ -472,8 +483,8 @@ class HealthCheckResponse(BaseResponse):
     uptime_seconds: float = Field(description="System uptime in seconds")
     services: List[ServiceStatus] = Field(description="Individual service statuses")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "success": True,
                 "timestamp": "2024-01-01T12:00:00Z",
@@ -490,6 +501,7 @@ class HealthCheckResponse(BaseResponse):
                 ],
             }
         }
+    }
 
 
 class ModelInfo(BaseModel):
@@ -504,8 +516,8 @@ class ModelInfo(BaseModel):
         None, description="Model performance metrics"
     )
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "name": "Ames Mutagenicity Predictor",
                 "endpoint": "ames_mutagenicity",
@@ -520,6 +532,7 @@ class ModelInfo(BaseModel):
                 },
             }
         }
+    }
 
 
 class ModelInfoResponse(BaseResponse):
@@ -527,8 +540,8 @@ class ModelInfoResponse(BaseResponse):
 
     models: List[ModelInfo] = Field(description="Available prediction models")
 
-    class Config:
-        schema_extra = {
+    model_config = {
+        "json_schema_extra": {
             "example": {
                 "success": True,
                 "timestamp": "2024-01-01T12:00:00Z",
@@ -543,3 +556,4 @@ class ModelInfoResponse(BaseResponse):
                 ],
             }
         }
+    }

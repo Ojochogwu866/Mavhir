@@ -2,23 +2,19 @@
 Development dependencies (extends requirements.txt).
 """
 -r requirements.txt
-
 # Code Quality
-black==23.11.0
-isort==5.12.0
-flake8==6.1.0
-mypy==1.7.1
-
+black
+isort
+flake8
+mypy
 # Testing Extras
-pytest-cov==4.1.0
-pytest-xdist==3.4.0  # Parallel testing
-httpx==0.25.2  # For TestClient
-
+pytest-cov
+pytest-xdist  # Parallel testing
+httpx  # For TestClient
 # Documentation
-mkdocs==1.5.3
-mkdocs-material==9.4.8
-
+mkdocs
+mkdocs-material
 # Development Tools  
-pre-commit==3.6.0
-jupyter==1.0.0  # For notebooks
-ipython==8.17.2
+pre-commit
+jupyter  # For notebooks
+ipython

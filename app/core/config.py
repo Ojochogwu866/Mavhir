@@ -1,7 +1,8 @@
 import os
 from typing import List, Optional, Dict, Any
 from pathlib import Path
-from pydantic import BaseSettings, Field, field_validator, model_validator
+from pydantic_settings import BaseSettings
+from pydantic import Field, field_validator, model_validator
 
 from .exceptions import ConfigurationError
 
@@ -9,21 +10,26 @@ from .exceptions import ConfigurationError
 class Settings(BaseSettings):
     """Application settings: hooked with .env"""
 
-    app_name = Field(default="Toxicity prediction API", description="Application Name")
-    version = Field(default="1.0.0", description="API version")
+    app_name: str = Field(default="Toxicity prediction API", description="Application Name")
+    version: str = Field(default="1.0.0", description="API version")
     environment: str = Field(default="development", description="Runtime Config")
     debug: bool = Field(default=False, description="Enable debug mode")
 
     # server settings
     host: str = Field(default="0.0.0.0", description="Server host")
-    port: str = Field(default=8000, ge=1, le=65535, description="Server port")
-    workers: str = Field(
+    port: int = Field(default=8000, ge=1, le=65535, description="Server port")
+    workers: int = Field(
         default=1, ge=1, le=16, description="Number of worker processes"
     )
 
+    # API settings
+    api_v1_prefix: str = Field(default="/api/v1", description="API v1 prefix")
+    max_file_size_mb: int = Field(default=50, ge=1, le=1000, description="Maximum file size in MB")
+    rate_limit_per_minute: int = Field(default=100, ge=1, le=10000, description="Rate limit per minute")
+
     # cors settings
-    cors_origin: str = Field(default="*", description="Allowed cors origin")
-    cors_allow_credentials: str = Field(
+    cors_origins: str = Field(default="*", description="Allowed cors origin")
+    cors_allow_credentials: bool = Field(
         default=True, description="Allow CORs credentials"
     )
     cors_allow_methods: str = Field(
@@ -32,11 +38,11 @@ class Settings(BaseSettings):
     cors_allow_headers: str = Field(default="*", description="Allowed CORs headers")
 
     # model settings
-    models_dir: str = Field(default="app/models", description="Models sirectory")
+    models_dir: str = Field(default="app/models", description="Models directory")
 
-    # Ames mutagenecity model
+    # Ames mutagenicity model
     ames_model_path: str = Field(
-        default="app/models/ames_mutagenecity.pkl", description="Ames model path"
+        default="app/models/ames_mutagenicity.pkl", description="Ames model path"
     )
     ames_scaler_path: str = Field(
         default="app/models/ames_scaler.pkl", description="Ames scaler path"
@@ -45,11 +51,11 @@ class Settings(BaseSettings):
         default=0.5, ge=0.0, le=1.0, description="Ames classification threshold"
     )
 
-    # carcinogenecity model
-    carcinogenecity_model_path: str = Field(default="app/models/carcinogenecity.pkl")
-    carcinigenecity_scaler_path: str = Field(
-        default="app/models/carcinogenecity_scaler.pkl",
-        description="Carcinogenecity scaler path",
+    # carcinogenicity model
+    carcinogenicity_model_path: str = Field(default="app/models/carcinogenicity.pkl")
+    carcinogenicity_scaler_path: str = Field(
+        default="app/models/carcinogenicity_scaler.pkl",
+        description="Carcinogenicity scaler path",
     )
     carcinogenicity_threshold: float = Field(
         default=0.5,
@@ -63,7 +69,7 @@ class Settings(BaseSettings):
         default=True, description="Enable molecule standardization"
     )
     standardization_timeout: int = Field(
-        default=30, ge=1, le=30, description="Standerdization timeout"
+        default=30, ge=1, le=30, description="Standardization timeout"
     )
 
     # descriptor calculation
@@ -73,7 +79,7 @@ class Settings(BaseSettings):
     enable_descriptor_caching: bool = Field(
         default=True, description="Enable descriptor caching"
     )
-    descriptor_Cache_size: int = Field(
+    descriptor_cache_size: int = Field(
         default=1000, ge=1, description="Descriptor cache size"
     )
 
@@ -136,47 +142,50 @@ class Settings(BaseSettings):
         default=True, description="Enable error tracking and reporting"
     )
 
-
-class config:
-    enf_file = ".env"
-    env_file_encoding = "utf-8"
-    case_sensitive = False
+    model_config = {
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "case_sensitive": False,
+    }
 
     # validators
     @field_validator("environment")
+    @classmethod
     def validate_environment(cls, v: str) -> str:
         """Validate environment settings."""
         allowed_environments = ["development", "testing", "staging", "production"]
         if v.lower() not in allowed_environments:
             raise ValueError(
-                f"Envrionment must be one of: {', '.join(allowed_environments)}"
+                f"Environment must be one of: {', '.join(allowed_environments)}"
             )
         return v.lower()
 
     @field_validator("log_level")
+    @classmethod
     def validate_log_level(cls, v: str) -> str:
         """Validate logging level"""
         allowed_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         v_upper = v.upper()
         if v_upper not in allowed_levels:
-            raise ValueError(f"Log levels ,ust be one of: {', '.join(allowed_levels)}")
+            raise ValueError(f"Log level must be one of: {', '.join(allowed_levels)}")
         return v_upper
 
     @field_validator("log_format")
+    @classmethod
     def validate_log_format(cls, v: str) -> str:
         """Validate log format"""
-        allowed_formats = ["simple", "detailed", "JSON"]
-        if v.lower not in allowed_formats:
+        allowed_formats = ["simple", "detailed", "json"]
+        if v.lower() not in allowed_formats:
             raise ValueError(f"Log format must be one of: {', '.join(allowed_formats)}")
         return v.lower()
 
-    @model_validator
-    def validate_model_files(cls, values: Dict[str, Any]) -> Dict[str, Any]:
+    @model_validator(mode='after')
+    @classmethod
+    def validate_model_files(cls, values: 'Settings') -> 'Settings':
         """
         Validate that model files exist.
-
         """
-        if values.get("environment") == "testing":
+        if values.environment == "testing":
             return values
 
         model_files = [
@@ -188,17 +197,17 @@ class config:
 
         missing_files = []
         for field_name, description in model_files:
-            file_path = values.get(field_name)
+            file_path = getattr(values, field_name)
             if file_path and not Path(file_path).exists():
                 missing_files.append(f"{description}: {file_path}")
 
         if missing_files:
-            if values.get("environment") == "development":
-                models_dir = Path(values.get("models_dir", "app/models"))
+            if values.environment == "development":
+                models_dir = Path(values.models_dir)
                 models_dir.mkdir(parents=True, exist_ok=True)
 
                 for field_name, _ in model_files:
-                    file_path = Path(values.get(field_name, ""))
+                    file_path = Path(getattr(values, field_name, ""))
                     if file_path and not file_path.exists():
                         file_path.parent.mkdir(parents=True, exist_ok=True)
                         file_path.touch()
@@ -257,10 +266,16 @@ class config:
         return self.max_file_size_mb * 1024 * 1024
 
 
-try:
-    settings = Settings()
-except Exception as e:
-    raise ConfigurationError(f"Failed to load application settings: {e}") from e
+def _create_settings_instance() -> Settings:
+    """Create settings instance with proper error handling."""
+    try:
+        return Settings()
+    except Exception as e:
+        raise ConfigurationError(f"Failed to load application settings: {e}") from e
+
+
+# Global settings instance
+settings = _create_settings_instance()
 
 
 def get_settings() -> Settings:
@@ -278,65 +293,65 @@ def create_sample_env_file(filename: str = ".env.example") -> None:
     """
     env_content = f"""# Toxicity Predictor API Configuration
 
-	# Basic App Settings
-		APP_NAME=Toxicity Predictor API
-		VERSION=1.0.0
-		ENVIRONMENT=development
-		DEBUG=false
+# Basic App Settings
+APP_NAME=Toxicity Predictor API
+VERSION=1.0.0
+ENVIRONMENT=development
+DEBUG=false
 
-		# Server Settings
-		HOST=0.0.0.0
-		PORT=8000
-		WORKERS=1
+# Server Settings
+HOST=0.0.0.0
+PORT=8000
+WORKERS=1
 
-		# API Settings
-		API_V1_PREFIX=/api/v1
-		MAX_FILE_SIZE_MB=50
-		RATE_LIMIT_PER_MINUTE=100
+# API Settings
+API_V1_PREFIX=/api/v1
+MAX_FILE_SIZE_MB=50
+RATE_LIMIT_PER_MINUTE=100
 
-		# CORS Settings
-		CORS_ORIGINS=*
-		CORS_ALLOW_CREDENTIALS=true
-		CORS_ALLOW_METHODS=GET,POST,PUT,DELETE
-		CORS_ALLOW_HEADERS=*
+# CORS Settings
+CORS_ORIGINS=*
+CORS_ALLOW_CREDENTIALS=true
+CORS_ALLOW_METHODS=GET,POST,PUT,DELETE
+CORS_ALLOW_HEADERS=*
 
-		# Model Settings
-		MODELS_DIR=app/models
-		AMES_MODEL_PATH=app/models/ames_mutagenicity.pkl
-		AMES_SCALER_PATH=app/models/ames_scaler.pkl
-		AMES_THRESHOLD=0.5
-		CARCINOGENICITY_MODEL_PATH=app/models/carcinogenicity.pkl
-		CARCINOGENICITY_SCALER_PATH=app/models/carcinogenicity_scaler.pkl
-		CARCINOGENICITY_THRESHOLD=0.5
+# Model Settings
+MODELS_DIR=app/models
+AMES_MODEL_PATH=app/models/ames_mutagenicity.pkl
+AMES_SCALER_PATH=app/models/ames_scaler.pkl
+AMES_THRESHOLD=0.5
+CARCINOGENICITY_MODEL_PATH=app/models/carcinogenicity.pkl
+CARCINOGENICITY_SCALER_PATH=app/models/carcinogenicity_scaler.pkl
+CARCINOGENICITY_THRESHOLD=0.5
 
-		# Processing Settings
-		ENABLE_MOLECULE_STANDARDIZATION=true
-		STANDARDIZATION_TIMEOUT=30
-		DESCRIPTOR_TIMEOUT=60
-		ENABLE_DESCRIPTOR_CACHING=true
-		DESCRIPTOR_CACHE_SIZE=1000
-		MAX_BATCH_SIZE=100
-		BATCH_PROCESSING_TIMEOUT=300
+# Processing Settings
+ENABLE_MOLECULE_STANDARDIZATION=true
+STANDARDIZATION_TIMEOUT=30
+DESCRIPTOR_TIMEOUT=60
+ENABLE_DESCRIPTOR_CACHING=true
+DESCRIPTOR_CACHE_SIZE=1000
+MAX_BATCH_SIZE=100
+BATCH_PROCESSING_TIMEOUT=300
 
-		# PubChem API Settings
-		PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov/rest/pug
-		PUBCHEM_TIMEOUT=10
-		PUBCHEM_RATE_LIMIT_DELAY=0.2
-		PUBCHEM_MAX_RETRIES=3
+# PubChem API Settings
+PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov/rest/pug
+PUBCHEM_TIMEOUT=10
+PUBCHEM_RATE_LIMIT_DELAY=0.2
+PUBCHEM_MAX_RETRIES=3
 
-		# Response Settings
-		INCLUDE_DESCRIPTORS_DEFAULT=false
-		INCLUDE_CONFIDENCE_DEFAULT=true
-		INCLUDE_MOLECULAR_PROPERTIES=true
-		PROBABILITY_PRECISION=4
-		DESCRIPTOR_PRECISION=6
+# Response Settings
+INCLUDE_DESCRIPTORS_DEFAULT=false
+INCLUDE_CONFIDENCE_DEFAULT=true
+INCLUDE_MOLECULAR_PROPERTIES=true
+PROBABILITY_PRECISION=4
+DESCRIPTOR_PRECISION=6
 
-		# Logging Settings
-		LOG_LEVEL=INFO
-		LOG_FORMAT=detailed
-		ENABLE_ACCESS_LOGGING=true
-		ENABLE_ERROR_TRACKING=true
-	"""
+# Logging Settings
+LOG_LEVEL=INFO
+LOG_FORMAT=detailed
+ENABLE_ACCESS_LOGGING=true
+ENABLE_ERROR_TRACKING=true
+"""
 
     with open(filename, "w") as f:
         f.write(env_content)

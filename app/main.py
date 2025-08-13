@@ -19,14 +19,12 @@ logger = logging.getLogger(__name__)
 
 settings = get_settings()
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
     Manage application startup and shutdown events.
     """
     
-    # STARTUP
     logger.info(f"Starting {settings.app_name} v{settings.version}")
     logger.info(f"Environment: {settings.environment}")
     logger.info(f"Debug mode: {settings.debug}")
@@ -62,12 +60,6 @@ async def lifespan(app: FastAPI):
 def create_application() -> FastAPI:
     """
     Create and configure the FastAPI application.
-    
-    CONFIGURATION:
-    - Metadata and documentation
-    - CORS and security middleware
-    - Error handling
-    - API route registration
     """
     
     app = FastAPI(
@@ -75,27 +67,6 @@ def create_application() -> FastAPI:
         version=settings.version,
         description="""
         **Toxicity Predictor API** - ML-powered chemical toxicity prediction
-        
-        ## Features
-        
-        * **Chemical Processing**: SMILES validation and standardization
-        * **Database Lookup**: PubChem compound search and properties
-        * **Toxicity Prediction**: Ames mutagenicity and carcinogenicity models
-        * **Batch Processing**: Handle multiple compounds efficiently
-        * **File Upload**: SDF file processing support
-        
-        ## Endpoints
-        
-        * **Health**: System status and diagnostics
-        * **Chemical**: Compound lookup and validation  
-        * **Predict**: Toxicity predictions and model info
-        
-        ## Models
-        
-        * **Ames Mutagenicity**: Bacterial reverse mutation test prediction
-        * **Carcinogenicity**: Rodent carcinogenicity study prediction
-        
-        Built with FastAPI, RDKit, and scikit-learn.
         """,
         contact={
             "name": "Toxicity Predictor Team",
@@ -124,13 +95,8 @@ def create_application() -> FastAPI:
         debug=settings.debug
     )
     
-    # Configure middleware
     _setup_middleware(app)
-    
-    # Register API routes
     _register_routes(app)
-    
-    # Setup error handlers
     _setup_error_handlers(app)
     
     return app
@@ -139,7 +105,6 @@ def create_application() -> FastAPI:
 def _setup_middleware(app: FastAPI) -> None:
     """Configure application middleware."""
     
-    # CORS Middleware
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.get_cors_origins(),
@@ -176,21 +141,15 @@ def _setup_middleware(app: FastAPI) -> None:
 def _register_routes(app: FastAPI) -> None:
     """Register all API routes."""
     
-    # Health check routes
-    app.include_router(health.router)
-    
-    # Chemical lookup routes  
+    app.include_router(health.router) 
     app.include_router(chemical.router, prefix=settings.api_v1_prefix)
-    
-    # Prediction routes
     app.include_router(predict.router, prefix=settings.api_v1_prefix)
     
-    # Root endpoint
     @app.get("/", tags=["Root"])
     async def root():
         """Root endpoint with basic API information."""
         return {
-            "message": f"Welcome to {settings.app_name}",
+            "message": f"AMES Mutagen and Carcinogen {settings.app_name}",
             "version": settings.version,
             "environment": settings.environment,
             "docs_url": "/docs",

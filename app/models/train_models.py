@@ -321,7 +321,7 @@ class SampleDataGenerator:
         ]
 
         return SampleDataGenerator._generate_balanced_data(
-            mutagenic_smiles, non_mutagenic_smiles, n_samples, "ames_mutagenic"
+            mutagenic_smiles, non_mutagenic_smiles, n_samples, "ames_mutagenicity"
         )
 
     @staticmethod
@@ -343,7 +343,7 @@ class SampleDataGenerator:
         ]
 
         return SampleDataGenerator._generate_balanced_data(
-            carcinogenic_smiles, non_carcinogenic_smiles, n_samples, "carcinogenic"
+            carcinogenic_smiles, non_carcinogenic_smiles, n_samples, "carcinogenicity"
         )
 
     @staticmethod
