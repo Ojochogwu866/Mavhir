@@ -1,4 +1,4 @@
-# AMC Toxicity Predictor API
+# Mavhir
 
 > **ML-powered chemical toxicity prediction API built with FastAPI, RDKit, and scikit-learn**
 
@@ -34,8 +34,8 @@ Built for **researchers**, **regulatory scientists**, and **pharmaceutical compa
 
 ### 1. Clone & Setup
 ```bash
-git clone https://github.com/Ojochogwu866/amc-predictor.git
-cd amc-predictor
+git clone https://github.com/Ojochogwu866/Mavhir.git
+cd Mavhir
 
 python -m venv venv
 source venv/bin/activate

@@ -52,7 +52,7 @@ class PubChemClient:
         self.session = requests.Session()
         self.session.headers.update(
             {
-                "User-Agent": "ToxicityPredictor/1.0 (https://github.com/Ojochogwu866/amc-predictor)"
+                "User-Agent": "ToxicityPredictor/1.0 (https://github.com/Ojochogwu866/Mavhir)"
             }
         )
 

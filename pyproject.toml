@@ -52,9 +52,9 @@ docs = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ojochogwu866/amc-predictor"
-"Bug Reports" = "https://github.com/ojochogwu866/amc-predictor/issues"
-"Source" = "https://github.com/ojochogwu866/amc-predictor"
+Homepage = "https://github.com/ojochogwu866/Mavhir"
+"Bug Reports" = "https://github.com/ojochogwu866/Mavhir/issues"
+"Source" = "https://github.com/ojochogwu866/Mavhir"
 
 [tool.black]
 line-length = 88

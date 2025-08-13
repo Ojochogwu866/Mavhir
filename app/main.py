@@ -66,12 +66,12 @@ def create_application() -> FastAPI:
         title=settings.app_name,
         version=settings.version,
         description="""
-        **Toxicity Predictor API** - ML-powered chemical toxicity prediction
+        **Mavhir** - ML-powered chemical toxicity prediction
         """,
         contact={
-            "name": "Toxicity Predictor Team",
-            "url": "https://github.com/Ojochogwu866/amc-predictor",
-            "email": "your-email@example.com"
+            "name": "Mavhir",
+            "url": "https://github.com/Ojochogwu866/Mavhir",
+            "email": "hello@ojochogwu.dev"
         },
         license_info={
             "name": "MIT License",
