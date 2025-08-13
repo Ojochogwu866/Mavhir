@@ -39,7 +39,6 @@ cd Mavhir
 
 python -m venv venv
 source venv/bin/activate
-# or: venv\Scripts\activate  # Windows: bremeber to switch from powershell to Batch if on VSCode
 
 pip install -r requirements.txt
 ```
@@ -193,10 +192,10 @@ docker-compose up --build
 ### Production
 ```bash
 # Build image
-docker build -t toxicity-predictor .
+docker build -t mavhir .
 
 # Run container
-docker run -p 8000:8000 toxicity-predictor
+docker run -p 8000:8000 mavhir
 ```
 
 ## 📊 Model Information

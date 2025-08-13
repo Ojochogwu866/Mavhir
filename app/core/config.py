@@ -294,7 +294,7 @@ def create_sample_env_file(filename: str = ".env.example") -> None:
     env_content = f"""# Toxicity Predictor API Configuration
 
 # Basic App Settings
-APP_NAME=Toxicity Predictor API
+APP_NAME=Mavhir
 VERSION=1.0.0
 ENVIRONMENT=development
 DEBUG=false
@@ -414,7 +414,7 @@ def print_current_config() -> None:
 
 
 if __name__ == "__main__":
-    print("Toxicity Predictor Configuration Manager")
+    print("Mavhir Configuration Manager")
     print("=" * 40)
 
     create_sample_env_file()

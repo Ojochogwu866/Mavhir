@@ -1,6 +1,6 @@
 # Data Directory
 
-This directory contains training data and examples for the Toxicity Predictor API.
+This directory contains training data and examples for the predictor API.
 
 ## Structure
 

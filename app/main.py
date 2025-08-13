@@ -87,7 +87,7 @@ def create_application() -> FastAPI:
                 "description": "Chemical database lookup and validation"
             },
             {
-                "name": "Toxicity Prediction",
+                "name": "mavhir",
                 "description": "ML-based toxicity predictions"
             }
         ],
