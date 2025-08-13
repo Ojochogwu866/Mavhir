@@ -144,7 +144,7 @@ if compound_info["found"]:
 ## Architecture
 
 ```
-toxicity-predictor/
+mavhir/
 ├── app/
 │   ├── main.py
 │   ├── api/
