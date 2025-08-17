@@ -1,7 +1,5 @@
 """
 Chemical structure processing service using RDKit.
-
-RDKit is the industry standard for cheminformatics in Python.
 """
 
 import logging

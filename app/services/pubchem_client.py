@@ -63,13 +63,6 @@ class PubChemClient:
         )
 
     def search_by_name(self, name: str) -> CompoundInfo:
-        """
-        Search for compound by name.
-
-        EXAMPLES:
-        - "ethanol" → Returns ethanol info
-        """
-
         name = name.strip().lower()
 
         if not name:
@@ -139,7 +132,6 @@ class PubChemClient:
     ) -> CompoundInfo:
         """Get compound properties from PubChem CID."""
 
-        # Properties we want to retrieve
         properties = [
             "MolecularFormula",
             "MolecularWeight",
@@ -239,14 +231,6 @@ def create_pubchem_client() -> PubChemClient:
 
 
 def quick_lookup(name: str) -> CompoundInfo:
-    """
-    Quick compound lookup function.
-
-    USAGE:
-        info = quick_lookup("caffeine")
-        if info.found:
-            print(f"Caffeine SMILES: {info.smiles}")
-    """
 
     client = create_pubchem_client()
     return client.search_by_name(name)

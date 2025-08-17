@@ -228,16 +228,6 @@ def _setup_error_handlers(app: FastAPI) -> None:
 app = create_application()
 
 if __name__ == "__main__":
-    """
-    Run the application directly for development.
-    
-    USAGE:
-        python -m app.main
-        
-    FOR PRODUCTION:
-        uvicorn app.main:app --host 0.0.0.0 --port 8000
-    """
-    
     import uvicorn
     
     uvicorn.run(

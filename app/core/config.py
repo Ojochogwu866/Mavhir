@@ -294,63 +294,63 @@ def create_sample_env_file(filename: str = ".env.example") -> None:
     env_content = f"""# Toxicity Predictor API Configuration
 
 # Basic App Settings
-APP_NAME=Mavhir
-VERSION=1.0.0
-ENVIRONMENT=development
-DEBUG=false
+	APP_NAME=Mavhir
+	VERSION=1.0.0
+	ENVIRONMENT=development
+	DEBUG=false
 
-# Server Settings
-HOST=0.0.0.0
-PORT=8000
-WORKERS=1
+	# Server Settings
+	HOST=0.0.0.0
+	PORT=8000
+	WORKERS=1
 
-# API Settings
-API_V1_PREFIX=/api/v1
-MAX_FILE_SIZE_MB=50
-RATE_LIMIT_PER_MINUTE=100
+	# API Settings
+	API_V1_PREFIX=/api/v1
+	MAX_FILE_SIZE_MB=50
+	RATE_LIMIT_PER_MINUTE=100
 
-# CORS Settings
-CORS_ORIGINS=*
-CORS_ALLOW_CREDENTIALS=true
-CORS_ALLOW_METHODS=GET,POST,PUT,DELETE
-CORS_ALLOW_HEADERS=*
+	# CORS Settings
+	CORS_ORIGINS=*
+	CORS_ALLOW_CREDENTIALS=true
+	CORS_ALLOW_METHODS=GET,POST,PUT,DELETE
+	CORS_ALLOW_HEADERS=*
 
-# Model Settings
-MODELS_DIR=app/models
-AMES_MODEL_PATH=app/models/ames_mutagenicity.pkl
-AMES_SCALER_PATH=app/models/ames_scaler.pkl
-AMES_THRESHOLD=0.5
-CARCINOGENICITY_MODEL_PATH=app/models/carcinogenicity.pkl
-CARCINOGENICITY_SCALER_PATH=app/models/carcinogenicity_scaler.pkl
-CARCINOGENICITY_THRESHOLD=0.5
+	# Model Settings
+	MODELS_DIR=app/models
+	AMES_MODEL_PATH=app/models/ames_mutagenicity.pkl
+	AMES_SCALER_PATH=app/models/ames_scaler.pkl
+	AMES_THRESHOLD=0.5
+	CARCINOGENICITY_MODEL_PATH=app/models/carcinogenicity.pkl
+	CARCINOGENICITY_SCALER_PATH=app/models/carcinogenicity_scaler.pkl
+	CARCINOGENICITY_THRESHOLD=0.5
 
-# Processing Settings
-ENABLE_MOLECULE_STANDARDIZATION=true
-STANDARDIZATION_TIMEOUT=30
-DESCRIPTOR_TIMEOUT=60
-ENABLE_DESCRIPTOR_CACHING=true
-DESCRIPTOR_CACHE_SIZE=1000
-MAX_BATCH_SIZE=100
-BATCH_PROCESSING_TIMEOUT=300
+	# Processing Settings
+	ENABLE_MOLECULE_STANDARDIZATION=true
+	STANDARDIZATION_TIMEOUT=30
+	DESCRIPTOR_TIMEOUT=60
+	ENABLE_DESCRIPTOR_CACHING=true
+	DESCRIPTOR_CACHE_SIZE=1000
+	MAX_BATCH_SIZE=100
+	BATCH_PROCESSING_TIMEOUT=300
 
-# PubChem API Settings
-PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov/rest/pug
-PUBCHEM_TIMEOUT=10
-PUBCHEM_RATE_LIMIT_DELAY=0.2
-PUBCHEM_MAX_RETRIES=3
+	# PubChem API Settings
+	PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov/rest/pug
+	PUBCHEM_TIMEOUT=10
+	PUBCHEM_RATE_LIMIT_DELAY=0.2
+	PUBCHEM_MAX_RETRIES=3
 
-# Response Settings
-INCLUDE_DESCRIPTORS_DEFAULT=false
-INCLUDE_CONFIDENCE_DEFAULT=true
-INCLUDE_MOLECULAR_PROPERTIES=true
-PROBABILITY_PRECISION=4
-DESCRIPTOR_PRECISION=6
+	# Response Settings
+	INCLUDE_DESCRIPTORS_DEFAULT=false
+	INCLUDE_CONFIDENCE_DEFAULT=true
+	INCLUDE_MOLECULAR_PROPERTIES=true
+	PROBABILITY_PRECISION=4
+	DESCRIPTOR_PRECISION=6
 
-# Logging Settings
-LOG_LEVEL=INFO
-LOG_FORMAT=detailed
-ENABLE_ACCESS_LOGGING=true
-ENABLE_ERROR_TRACKING=true
+	# Logging Settings
+	LOG_LEVEL=INFO
+	LOG_FORMAT=detailed
+	ENABLE_ACCESS_LOGGING=true
+	ENABLE_ERROR_TRACKING=true
 """
 
     with open(filename, "w") as f:
@@ -363,9 +363,6 @@ ENABLE_ERROR_TRACKING=true
 def validate_configuration() -> None:
     """
     Validate the current configuration.
-
-    Useful for startup checks and health monitoring.
-    Raises ConfigurationError if any issues are found.
     """
     try:
         test_settings = Settings()
@@ -387,22 +384,19 @@ def validate_configuration() -> None:
         raise ConfigurationError(f"Configuration validation failed: {e}") from e
 
 
-# development helpers
-
-
 def print_current_config() -> None:
     """Print current configuration (useful for debugging)."""
     current_settings = get_settings()
 
-    print("Current Configuration:")
-    print("=" * 50)
-    print(f"Environment: {current_settings.environment}")
-    print(f"Debug Mode: {current_settings.debug}")
-    print(f"API Prefix: {current_settings.api_v1_prefix}")
-    print(f"Models Directory: {current_settings.models_dir}")
-    print(f"Max Batch Size: {current_settings.max_batch_size}")
-    print(f"PubChem Timeout: {current_settings.pubchem_timeout}s")
-    print(f"Log Level: {current_settings.log_level}")
+    # print("Current Configuration:")
+    # print("=" * 50)
+    # print(f"Environment: {current_settings.environment}")
+    # print(f"Debug Mode: {current_settings.debug}")
+    # print(f"API Prefix: {current_settings.api_v1_prefix}")
+    # print(f"Models Directory: {current_settings.models_dir}")
+    # print(f"Max Batch Size: {current_settings.max_batch_size}")
+    # print(f"PubChem Timeout: {current_settings.pubchem_timeout}s")
+    # print(f"Log Level: {current_settings.log_level}")
 
     print("\nModel Configuration:")
     model_config = current_settings.get_model_config()

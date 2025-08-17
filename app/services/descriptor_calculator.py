@@ -8,7 +8,6 @@ import numpy as np
 from functools import lru_cache
 
 from mordred import Calculator, descriptors
-
 from rdkit import Chem
 
 # Our imports
@@ -36,39 +35,54 @@ class DescriptorCalculator:
         )
 
     def _setup_calculator(self):
-        """
-        Setup Mordred calculator with selected descriptors.
-        """
-
-        # Create calculator
         calc = Calculator()
-
-        calc.register(descriptors.AtomCount)  # Atom counts by type
-        calc.register(descriptors.BondCount)  # Bond counts by type
-        calc.register(descriptors.RingCount)  # Ring information
-
-        # 2. Topological descriptors (shape and connectivity)
-        calc.register(descriptors.TopologicalIndex)  # Wiener, Zagreb indices
-        calc.register(descriptors.ConnectivityIndex)  # Kier-Hall chi indices
-        calc.register(descriptors.InformationIndex)  # Information content
-
-        # 3. Geometric descriptors (3D shape)
-        calc.register(descriptors.GeometricIndex)  # Molecular volume, surface area
-
-        # 4. Electronic descriptors (charge distribution)
-        calc.register(descriptors.PartialCharge)  # Atomic charges
-        calc.register(descriptors.Polarizability)  # Electronic polarizability
-
-        # 5. Fragment-based descriptors (functional groups)
-        calc.register(descriptors.FragmentComplexity)  # Molecular complexity
-        calc.register(descriptors.Framework)  # Molecular framework
-
+        safe_descriptors = []
+        
+        try:
+            calc.register(descriptors.AtomCount)
+            safe_descriptors.append("AtomCount")
+        except Exception as e:
+            logger.warning(f"Failed to register AtomCount: {e}")
+        
+        try:
+            calc.register(descriptors.BondCount)
+            safe_descriptors.append("BondCount")
+        except Exception as e:
+            logger.warning(f"Failed to register BondCount: {e}")		
+		
+        try:
+            calc.register(descriptors.RingCount)
+            safe_descriptors.append("RingCount")
+        except Exception as e:
+            logger.warning(f"Failed to register RingCount: {e}")
+    
+        optional_descriptors = [
+			"Constitutional",
+			"TopologicalIndex", 
+			"InformationIndex",
+			"GeometricIndex",
+			"PartialCharge",
+			"Polarizability",
+			"FragmentComplexity",
+			"Framework"
+		]
+    
+        for desc_name in optional_descriptors:
+            try:
+                if hasattr(descriptors, desc_name):
+                    desc_class = getattr(descriptors, desc_name)
+                    calc.register(desc_class)
+                    safe_descriptors.append(desc_name)
+                    logger.debug(f"Registered: {desc_name}")
+            except Exception as e:
+                logger.warning(f"Failed to register {desc_name}: {e}")
+    
         self.calculator = calc
         self.descriptor_names = [str(d) for d in calc.descriptors]
+			
+        logger.info(f"Successfully registered {len(safe_descriptors)} descriptor groups: {safe_descriptors}")
+        logger.debug(f"Total descriptors: {len(self.descriptor_names)}")
 
-        logger.debug(
-            f"Calculator setup with descriptor families: AtomCount, BondCount, RingCount, TopologicalIndex, ConnectivityIndex"
-        )
 
     def calculate(self, mol: Chem.Mol, smiles: str) -> Dict[str, float]:
         """

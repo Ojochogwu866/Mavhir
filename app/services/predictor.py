@@ -110,15 +110,6 @@ class ToxicityModel:
             return None
 
     def predict(self, descriptors: Dict[str, float]) -> PredictionResult:
-        """
-        Make toxicity prediction from molecular descriptors.
-
-        PARAMETERS:
-            descriptors: Dictionary of descriptor name -> value
-
-        RETURNS:
-            PredictionResult with prediction, probability, confidence
-        """
         try:
             feature_array = self._prepare_features(descriptors)
             if self.scaler is not None:
@@ -183,7 +174,6 @@ class ToxicityModel:
                 else PredictionClass.NON_CARCINOGENIC
             )
         else:
-            # Future endpoints
             return PredictionClass.POSITIVE if is_positive else PredictionClass.NEGATIVE
 
     def _get_confidence_level(self, probability: float) -> ConfidenceLevel:
@@ -210,7 +200,6 @@ class ToxicityPredictor:
         self.settings = get_settings()
         self.models: Dict[ToxicityEndpoint, ToxicityModel] = {}
 
-        # Load all configured models
         self._load_models()
 
         logger.info(f"ToxicityPredictor initialized with {len(self.models)} models")
@@ -288,16 +277,6 @@ class ToxicityPredictor:
         compounds: List[Tuple[str, Dict[str, float]]],
         endpoints: Optional[List[ToxicityEndpoint]] = None,
     ) -> List[CompoundPredictions]:
-        """
-        Predict toxicity for multiple compounds.
-
-        PARAMETERS:
-            compounds: List of (smiles, descriptors) tuples
-            endpoints: Which endpoints to predict
-
-        RETURNS:
-            List of CompoundPredictions
-        """
 
         results = []
 
@@ -371,7 +350,7 @@ def _test_predictor():
         # prediction = predictor.predict(dummy_descriptors, test_smiles)
         # print(f"Predictions: {prediction.predictions}")
 
-        print("✅ Predictor initialized successfully")
+        print(" Predictor initialized successfully")
         print("Note: Actual predictions require trained model files")
 
     except Exception as e:

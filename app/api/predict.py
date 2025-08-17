@@ -375,13 +375,6 @@ async def _process_single_compound(
 
 
 def _parse_sdf_content(content: str) -> List[tuple]:
-    """
-    Simple SDF parser (placeholder implementation).
-
-    In production, use RDKit's Chem.SDMolSupplier for robust SDF parsing.
-    This is a simplified version for demonstration.
-    """
-
     molecules = content.split("$$$$")
 
     results = []

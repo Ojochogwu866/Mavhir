@@ -15,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/health", tags=["Health"])
 
-# Track when the service started
 START_TIME = time.time()
 
 
@@ -283,10 +282,6 @@ async def _test_pubchem_client() -> ServiceStatus:
 def _determine_overall_status(service_statuses: List[ServiceStatus]) -> str:
     """
     Determine overall system health from individual service statuses.
-
-
-    CRITICAL SERVICES: chemical_processor, descriptor_calculator, ml_predictor
-    OPTIONAL SERVICES: pubchem_client (external dependency)
     """
 
     critical_services = {"chemical_processor", "descriptor_calculator", "ml_predictor"}
@@ -301,8 +296,8 @@ def _determine_overall_status(service_statuses: List[ServiceStatus]) -> str:
             any_degraded = True
 
     if critical_unhealthy:
-        return "unhealthy"  # Critical services failing
+        return "unhealthy"
     elif any_degraded:
-        return "degraded"  # Some issues but functional
+        return "degraded"
     else:
-        return "healthy"  # All good
+        return "healthy"
