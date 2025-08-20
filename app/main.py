@@ -66,7 +66,7 @@ def create_application() -> FastAPI:
         title=settings.app_name,
         version=settings.version,
         description="""
-        **Mavhir** - ML-powered chemical toxicity prediction
+        Mavhir - Toxicity prediction for Ames mutagenecity and Carcinigenecity using python
         """,
         contact={
             "name": "Mavhir",
