@@ -1,3 +1,7 @@
+import pickle
+import json
+from pathlib import Path
+from datetime import datetime
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Tuple, Optional, Any
@@ -77,7 +81,7 @@ class ModelMetrics:
 
 @dataclass
 class ModelConfig:
-    """Enhanced model configuration."""
+    """ model configuration."""
 
     endpoint: ToxicityEndpoint
     model_type: ModelType
@@ -646,8 +650,7 @@ class ProductionDataGenerator:
             },
         ]
 
-
-class EnhancedDescriptorCalculator:
+class DescriptorCalculator:
 
     def __init__(self):
         """Initialize with comprehensive descriptor sets."""
@@ -678,7 +681,6 @@ class EnhancedDescriptorCalculator:
                 except Exception as e:
                     logger.warning(f"Failed to register {group.__name__}: {e}")
 
-            # Additional descriptor groups
             additional_groups = [
                 "TopologicalIndex",
                 "Polarizability",
@@ -814,22 +816,22 @@ class EnhancedDescriptorCalculator:
             return df
 
 
-class EnhancedModelTrainer:
+class ModelTrainer:
     def __init__(self, use_realistic_data: bool = True):
         """Initialize trainer."""
         self.use_realistic_data = use_realistic_data
-        self.descriptor_calculator = EnhancedDescriptorCalculator()
+        self.descriptor_calculator = DescriptorCalculator()
         self.data_generator = ProductionDataGenerator()
 
         logger.info("Model Trainer initialized")
 
     def train_model(self, config: ModelConfig) -> TrainingResult:
         """
-        Train model with comprehensive validation and monitoring.
+        Train model with validation and monitoring.
         """
         start_time = time.time()
         logger.info(
-            f"🚀 Training {config.endpoint.value} model with {config.model_type.value}"
+            f"Training {config.endpoint.value} model with {config.model_type.value}"
         )
 
         if self.use_realistic_data:
@@ -1015,7 +1017,6 @@ class EnhancedModelTrainer:
             },
         ]
 
-        # Add compounds until we reach target size
         current_size = len(df)
         compounds_to_add = min(len(additional_compounds), target_size - current_size)
 
@@ -1040,7 +1041,6 @@ class EnhancedModelTrainer:
         """Generate synthetic training data (fallback method)."""
         logger.warning("Using synthetic data - not recommended for production!")
 
-        # Simple synthetic data generation
         np.random.seed(42)
         synthetic_smiles = [
             "CCO",
@@ -1124,8 +1124,8 @@ class EnhancedModelTrainer:
         balanced_acc = balanced_accuracy_score(y_true, y_pred)
         mcc = matthews_corrcoef(y_true, y_pred)
 
-        cv_mean = np.mean(cv_scores) if cv_scores else 0.0
-        cv_std = np.std(cv_scores) if cv_scores else 0.0
+        cv_mean = np.mean(cv_scores) if len(cv_scores) > 0 else 0.0
+        cv_std = np.std(cv_scores) if len(cv_scores) > 0 else 0.0
 
         return ModelMetrics(
             accuracy=accuracy_score(y_true, y_pred),
@@ -1184,13 +1184,11 @@ class EnhancedModelTrainer:
         logger.info(f"  AUC-ROC:          {metrics.roc_auc:.3f}")
         logger.info(f"  Matthews Corr:    {metrics.matthews_corrcoef:.3f}")
 
-        # Cross-validation
         if metrics.cv_mean > 0:
             logger.info(
                 f"  CV AUC:           {metrics.cv_mean:.3f} ± {metrics.cv_std:.3f}"
             )
 
-        # Training set performance
         train_acc = accuracy_score(y_train, y_train_pred)
         val_acc = accuracy_score(y_val, y_val_pred)
 
@@ -1199,8 +1197,99 @@ class EnhancedModelTrainer:
         logger.info(f"  Val Accuracy:     {val_acc:.3f}")
         logger.info(f"  Test Accuracy:    {metrics.accuracy:.3f}")
 
-        # Check for overfitting
         if train_acc - metrics.accuracy > 0.1:
             logger.warning("Potential overfitting detected!")
 
         logger.info(f"{'='*60}\n")
+
+def train_and_save_models():
+    """Train models and save them to pickle files."""
+    logger.info(" Training and saving models...")
+    
+    trainer = ModelTrainer(use_realistic_data=True)
+    
+    models_dir = Path("app/models")
+    models_dir.mkdir(parents=True, exist_ok=True)
+    
+    configs = [
+        ModelConfig(
+            endpoint=ToxicityEndpoint.AMES_MUTAGENICITY,
+            model_type=ModelType.RANDOM_FOREST,
+        ),
+        ModelConfig(
+            endpoint=ToxicityEndpoint.CARCINOGENICITY,
+            model_type=ModelType.GRADIENT_BOOSTING,
+        ),
+    ]
+    
+    metadata = {}
+    
+    for config in configs:
+        try:
+            logger.info(f"Training {config.endpoint.value} model...")
+            
+            # Train the model
+            result = trainer.train_model(config)
+            
+            # CRITICAL: Verify model is trained
+            if not hasattr(result.model, 'classes_'):
+                logger.error(f" Model not properly trained: {config.endpoint.value}")
+                continue
+            
+            # Save model
+            endpoint = config.endpoint.value
+            model_path = models_dir / f"{endpoint}.pkl"
+            
+            with open(model_path, "wb") as f:
+                pickle.dump(result.model, f, protocol=4)
+            
+            # Verify model file
+            model_size = model_path.stat().st_size
+            if model_size == 0:
+                logger.error(f" Model file is empty: {model_path}")
+                continue
+            
+            logger.info(f" Saved model: {model_path} ({model_size} bytes)")
+            
+            # Save scaler
+            scaler_path = models_dir / f"{endpoint}_scaler.pkl"
+            with open(scaler_path, "wb") as f:
+                pickle.dump(result.scaler, f, protocol=4)
+            
+            scaler_size = scaler_path.stat().st_size
+            logger.info(f"Saved scaler: {scaler_path} ({scaler_size} bytes)")
+            
+            # Save metadata
+            metadata[endpoint] = {
+                "model_type": config.model_type.value,
+                "n_features": len(result.descriptor_names),
+                "feature_names": result.descriptor_names,
+                "training_date": datetime.now().isoformat(),
+                "version": "1.0",
+                "metrics": {
+                    "accuracy": result.metrics.accuracy,
+                    "precision": result.metrics.precision,
+                    "recall": result.metrics.recall,
+                    "f1_score": result.metrics.f1_score,
+                    "roc_auc": result.metrics.roc_auc,
+                },
+            }
+            
+            logger.info(f" {endpoint} model training completed")
+            
+        except Exception as e:
+            logger.error(f" Failed to train {config.endpoint.value}: {e}")
+            continue
+    
+    # Save metadata
+    if metadata:
+        metadata_path = models_dir / "model_metadata.json"
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=2)
+        logger.info(f"Saved metadata: {metadata_path}")
+    
+    logger.info("Model training and saving complete!")
+
+
+if __name__ == "__main__":
+    train_and_save_models()

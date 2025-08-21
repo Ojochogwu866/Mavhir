@@ -1,45 +1,48 @@
+
 version: '3.8'
 
 services:
-  api:
+  mavhir:
     build: .
     ports:
       - "8000:8000"
     environment:
-      - ENVIRONMENT=development
-      - DEBUG=true
-      - LOG_LEVEL=INFO
+      - MAVHIR_ENVIRONMENT=production
+      - MAVHIR_DEBUG=false
+      - MAVHIR_LOG_LEVEL=INFO
+      - MAVHIR_REDIS_URL=redis://redis:6379/0
     volumes:
-      - ./app:/home/app/app
-      - ./data:/home/app/data
-      - ./logs:/home/app/logs
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
+    depends_on:
+      - redis
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
-    restart: unless-stopped
-    profiles:
-      - production
-
-  # Optional: Add monitoring (production)
-  prometheus:
-    image: prom/prometheus:latest
-    ports:
-      - "9090:9090"
     volumes:
-      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - redis_data:/data
     restart: unless-stopped
-    profiles:
-      - monitoring
+
+  # Optional: Database
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: mavhir
+  #     POSTGRES_USER: mavhir
+  #     POSTGRES_PASSWORD: your_password_here
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
+
+volumes:
+  redis_data:
+  # postgres_data:
 
 networks:
   default:
-    name: mavhir-predictor-network
+    name: mavhir_network

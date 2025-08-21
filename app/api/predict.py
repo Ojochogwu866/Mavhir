@@ -22,7 +22,6 @@ from ..services.chemical_processor import create_chemical_processor
 from ..services.descriptor_calculator import create_descriptor_calculator
 from ..services.predictor import create_predictor
 from ..core.exceptions import (
-    MavhirDescriptorCalculationError,
     MavhirModelPredictionError,
 )
 from rdkit import Chem
@@ -54,25 +53,13 @@ async def predict_smiles(
                 detail=f"Invalid SMILES: {'; '.join(processed_mol.errors)}",
             )
 
-        logger.debug("Calculating molecular descriptors")
-        descriptor_calculator = create_descriptor_calculator()
-
-        try:
-            descriptors = descriptor_calculator.calculate_cached(
-                processed_mol.canonical_smiles
-            )
-        except MavhirDescriptorCalculationError as e:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Descriptor calculation failed: {e.message}",
-            )
-
         logger.debug("Making toxicity predictions")
         predictor = create_predictor()
 
         try:
+            # Let the predictor handle descriptor calculation for each model
             predictions = predictor.predict(
-                descriptors=descriptors,
+                descriptors=None,  # Let predictor calculate descriptors for each model
                 smiles=processed_mol.canonical_smiles,
                 endpoints=request.endpoints,
             )
@@ -93,15 +80,43 @@ async def predict_smiles(
                 confidence=pred_result.confidence,
             )
 
+        # Calculate descriptors for response if requested
+        descriptors_for_response = None
+        if request.include_descriptors:
+            try:
+                descriptor_calculator = create_descriptor_calculator()
+                descriptors_for_response = descriptor_calculator.calculate_cached(
+                    processed_mol.canonical_smiles
+                )
+            except Exception as e:
+                logger.warning(f"Failed to calculate descriptors for response: {e}")
+
+        # Convert molecular properties to API format
+        api_molecular_properties = None
+        if request.include_properties and processed_mol.properties:
+            try:
+                from ..core.models import MolecularProperties
+                api_molecular_properties = MolecularProperties(
+                    molecular_weight=float(processed_mol.properties.molecular_weight),
+                    logp=float(processed_mol.properties.logp),
+                    tpsa=float(processed_mol.properties.tpsa),
+                    num_heavy_atoms=int(processed_mol.properties.num_heavy_atoms),
+                    num_aromatic_rings=int(processed_mol.properties.num_aromatic_rings),
+                    num_rotatable_bonds=int(processed_mol.properties.num_rotatable_bonds),
+                    num_hbd=int(processed_mol.properties.num_hbd),
+                    num_hba=int(processed_mol.properties.num_hba),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to convert molecular properties: {e}")
+                api_molecular_properties = None
+
         compound_response = CompoundPredictionResponse(
             smiles=request.smiles,
             canonical_smiles=processed_mol.canonical_smiles,
             molecular_formula=processed_mol.molecular_formula,
             predictions=PredictionResults(**api_predictions),
-            molecular_properties=(
-                processed_mol.properties if request.include_properties else None
-            ),
-            descriptors=descriptors if request.include_descriptors else None,
+            molecular_properties=api_molecular_properties,
+            descriptors=descriptors_for_response,
             success=True,
         )
 
@@ -327,12 +342,9 @@ async def _process_single_compound(
                 success=False,
             )
 
-        descriptors = descriptor_calculator.calculate_cached(
-            processed_mol.canonical_smiles
-        )
-
+        # Let the predictor handle descriptor calculation for each model
         predictions = predictor.predict(
-            descriptors=descriptors,
+            descriptors=None,  # Let predictor calculate descriptors for each model
             smiles=processed_mol.canonical_smiles,
             endpoints=endpoints,
         )
@@ -346,15 +358,42 @@ async def _process_single_compound(
                 confidence=pred_result.confidence,
             )
 
+        # Calculate descriptors for response if requested
+        descriptors_for_response = None
+        if include_descriptors:
+            try:
+                descriptors_for_response = descriptor_calculator.calculate_cached(
+                    processed_mol.canonical_smiles
+                )
+            except Exception as e:
+                logger.warning(f"Failed to calculate descriptors for response: {e}")
+
+        # Convert molecular properties to API format
+        api_molecular_properties = None
+        if include_properties and processed_mol.properties:
+            try:
+                from ..core.models import MolecularProperties
+                api_molecular_properties = MolecularProperties(
+                    molecular_weight=float(processed_mol.properties.molecular_weight),
+                    logp=float(processed_mol.properties.logp),
+                    tpsa=float(processed_mol.properties.tpsa),
+                    num_heavy_atoms=int(processed_mol.properties.num_heavy_atoms),
+                    num_aromatic_rings=int(processed_mol.properties.num_aromatic_rings),
+                    num_rotatable_bonds=int(processed_mol.properties.num_rotatable_bonds),
+                    num_hbd=int(processed_mol.properties.num_hbd),
+                    num_hba=int(processed_mol.properties.num_hba),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to convert molecular properties: {e}")
+                api_molecular_properties = None
+
         compound_response = CompoundPredictionResponse(
             smiles=smiles,
             canonical_smiles=processed_mol.canonical_smiles,
             molecular_formula=processed_mol.molecular_formula,
             predictions=PredictionResults(**api_predictions),
-            molecular_properties=(
-                processed_mol.properties if include_properties else None
-            ),
-            descriptors=descriptors if include_descriptors else None,
+            molecular_properties=api_molecular_properties,
+            descriptors=descriptors_for_response,
             success=True,
         )
 

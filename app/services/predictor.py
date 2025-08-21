@@ -11,7 +11,6 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 import threading
 
-# ML imports
 from sklearn.base import BaseEstimator
 from sklearn.preprocessing import StandardScaler
 
@@ -28,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PredictionResult:
-    """Enhanced prediction result with metadata."""
+    """Prediction result with metadata."""
 
     endpoint: ToxicityEndpoint
     prediction: PredictionClass
@@ -41,7 +40,7 @@ class PredictionResult:
 
 @dataclass
 class CompoundPredictions:
-    """Enhanced predictions for a single compound."""
+    """Predictions for a single compound."""
 
     smiles: str
     predictions: Dict[ToxicityEndpoint, PredictionResult]
@@ -97,11 +96,7 @@ class ModelMetrics:
             }
 
 
-class EnhancedToxicityModel:
-    """
-    Production-ready toxicity model with comprehensive error handling and monitoring.
-    """
-
+class ToxicityModel:
     def __init__(
         self,
         endpoint: ToxicityEndpoint,
@@ -123,19 +118,15 @@ class EnhancedToxicityModel:
         # Load model components
         self._load_model_components()
 
-        logger.info(f"Enhanced {endpoint.value} model loaded successfully")
+        logger.info(f" {endpoint.value} model loaded successfully")
 
     def _load_model_components(self):
-        """Load all model components with comprehensive validation."""
 
-        # Load main model
         self.model = self._load_model()
         self.expected_features = self._determine_expected_features()
 
-        # Load and validate scaler
         self.scaler = self._load_and_validate_scaler()
 
-        # Validate model compatibility
         self._validate_model_components()
 
         logger.info(
@@ -144,7 +135,7 @@ class EnhancedToxicityModel:
         )
 
     def _load_model(self) -> BaseEstimator:
-        """Load ML model with enhanced error handling."""
+        """Load ML model with error handling."""
         try:
             model_file = Path(self.model_path)
             if not model_file.exists():
@@ -160,7 +151,6 @@ class EnhancedToxicityModel:
                     self.model_path, f"Unsupported file format: {model_file.suffix}"
                 )
 
-            # Validate model has required methods
             required_methods = ["predict"]
             for method in required_methods:
                 if not hasattr(model, method):
@@ -429,15 +419,11 @@ class EnhancedToxicityModel:
         }
 
 
-class EnhancedToxicityPredictor:
-    """
-    Production-ready toxicity prediction service with async support and monitoring.
-    """
-
+class ToxicityPredictor:
     def __init__(self):
-        """Initialize predictor with enhanced capabilities."""
+
         self.settings = get_settings()
-        self.models: Dict[ToxicityEndpoint, EnhancedToxicityModel] = {}
+        self.models: Dict[ToxicityEndpoint, ToxicityModel] = {}
         self._executor = ThreadPoolExecutor(max_workers=4)
         self._global_metrics = ModelMetrics()
 
@@ -449,7 +435,7 @@ class EnhancedToxicityPredictor:
         self._load_models()
 
         logger.info(
-            f"EnhancedToxicityPredictor initialized with {len(self.models)} models"
+            f"ToxicityPredictor initialized with {len(self.models)} models"
         )
 
     def _load_models(self):
@@ -464,12 +450,12 @@ class EnhancedToxicityPredictor:
 
                 logger.info(f"Loading {endpoint_name} model...")
 
-                model = EnhancedToxicityModel(
+                model = ToxicityModel(
                     endpoint=endpoint,
                     model_path=config["model_path"],
                     scaler_path=config["scaler_path"],
                     threshold=config["threshold"],
-                    version="2.0",  # Enhanced version
+                    version="2.0",
                 )
 
                 self.models[endpoint] = model
@@ -494,9 +480,7 @@ class EnhancedToxicityPredictor:
         endpoints: Optional[List[ToxicityEndpoint]] = None,
         request_id: Optional[str] = None,
     ) -> CompoundPredictions:
-        """
-        Async prediction with concurrent model execution.
-        """
+
         start_time = time.time()
 
         if endpoints is None:
@@ -573,11 +557,27 @@ class EnhancedToxicityPredictor:
         request_id: Optional[str] = None,
     ) -> CompoundPredictions:
         """
-        Synchronous prediction (wrapper for async method).
+        Synchronous predict method that handles event loop context properly.
         """
-        return asyncio.run(
-            self.predict_async(descriptors, smiles, endpoints, request_id)
-        )
+        try:
+            # Check if we're already in an async context
+            loop = asyncio.get_running_loop()
+            # If we're in an async context, we need to run this in a thread
+            # to avoid the "asyncio.run() cannot be called from a running event loop" error
+            import concurrent.futures
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    self.predict_async(descriptors, smiles, endpoints, request_id)
+                )
+                return future.result()
+                
+        except RuntimeError:
+            # No running event loop, safe to use asyncio.run()
+            return asyncio.run(
+                self.predict_async(descriptors, smiles, endpoints, request_id)
+            )
 
     async def predict_batch_async(
         self,
@@ -586,13 +586,10 @@ class EnhancedToxicityPredictor:
         max_concurrent: int = 10,
         request_id: Optional[str] = None,
     ) -> List[CompoundPredictions]:
-        """
-        Async batch prediction with concurrency control.
-        """
+
         if endpoints is None:
             endpoints = list(self.models.keys())
 
-        # Process in batches to control concurrency
         results = []
         semaphore = asyncio.Semaphore(max_concurrent)
 
@@ -718,6 +715,6 @@ class EnhancedToxicityPredictor:
             pass
 
 
-def create_predictor() -> EnhancedToxicityPredictor:
-    """Factory function to create EnhancedToxicityPredictor."""
-    return EnhancedToxicityPredictor()
+def create_predictor() -> ToxicityPredictor:
+    """Factory function to create ToxicityPredictor."""
+    return ToxicityPredictor()

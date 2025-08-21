@@ -419,7 +419,7 @@ class DataFactory:
             readme_creator = ReadmeCreator(self.base_dir)
             readme_creator.create_data()
 
-            logger.info("🎉 All example data files created successfully!")
+            logger.info(" All example data files created successfully!")
 
         except Exception as e:
             logger.error(f"Failed to create data files: {e}")
