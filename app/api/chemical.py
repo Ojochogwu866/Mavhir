@@ -7,7 +7,7 @@ from ..core.config import get_settings, Settings
 from ..core.models import ChemicalLookupResponse, ErrorResponse
 from ..services.pubchem_client import create_pubchem_client
 from ..services.chemical_processor import create_chemical_processor
-from ..core.exceptions import PubChemNotFoundError, PubChemAPIError, InvalidSMILESError
+from ..core.exceptions import MavhirPubChemAPIError, MavhirInvalidSMILESError
 
 logger = logging.getLogger(__name__)
 
@@ -23,10 +23,8 @@ async def lookup_compound(query: str, settings: Settings = Depends(get_settings)
     start_time = time.time()
 
     try:
-        # Create PubChem client
         client = create_pubchem_client()
 
-        # Search for compound
         logger.info(f"Looking up compound: {query}")
         result = client.search_by_name(query)
 
@@ -45,14 +43,14 @@ async def lookup_compound(query: str, settings: Settings = Depends(get_settings)
             found=result.found,
         )
 
-    except PubChemNotFoundError:
+    except MavhirPubChemAPIError:
         processing_time = time.time() - start_time
 
         return ChemicalLookupResponse(
             success=True, processing_time=processing_time, query=query, found=False
         )
 
-    except PubChemAPIError as e:
+    except MavhirPubChemAPIError as e:
         logger.error(f"PubChem API error for query '{query}': {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -72,11 +70,6 @@ async def validate_smiles(
     smiles: str = Query(..., description="SMILES string to validate"),
     standardize: bool = Query(default=True, description="Return standardized form"),
 ):
-    """
-    Validate and optionally standardize SMILES string.
-
-    """
-
     start_time = time.time()
 
     try:
@@ -123,7 +116,7 @@ async def validate_smiles(
                 "canonical_smiles": canonical_smiles,
             }
 
-    except InvalidSMILESError as e:
+    except MavhirInvalidSMILESError as e:
         processing_time = time.time() - start_time
 
         return {
@@ -149,9 +142,6 @@ async def get_chemical_properties(
         default=True, description="Include drug-likeness assessment"
     ),
 ):
-    """
-    Calculate molecular properties from SMILES.
-    """
 
     start_time = time.time()
 
@@ -207,10 +197,6 @@ async def get_chemical_properties(
 
 @router.post("/validate/batch", response_model=Dict[str, Any])
 async def validate_smiles_batch(smiles_list: list[str], max_batch_size: int = 100):
-    """
-    Validate multiple SMILES strings at once.
-    """
-
     start_time = time.time()
 
     if len(smiles_list) > max_batch_size:

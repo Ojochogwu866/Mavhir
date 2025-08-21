@@ -17,3 +17,5 @@ pytest-mock
 python-multipart
 gunicorn
 python-json-logger
+joblib
+scikit-learn

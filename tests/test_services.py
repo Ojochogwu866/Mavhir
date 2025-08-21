@@ -1,21 +1,17 @@
 import pytest
 import numpy as np
-from unittest.mock import Mock, patch, MagicMock
-from rdkit import Chem
+from unittest.mock import Mock, patch
 
-from app.services.chemical_processor import ChemicalProcessor, create_chemical_processor
+from app.services.chemical_processor import create_chemical_processor
 from app.services.descriptor_calculator import (
-    DescriptorCalculator,
     create_descriptor_calculator,
 )
-from app.services.predictor import ToxicityPredictor, create_predictor
-from app.services.pubchem_client import PubChemClient, create_pubchem_client
+from app.services.predictor import create_predictor
+from app.services.pubchem_client import create_pubchem_client
 from app.core.exceptions import (
-    InvalidSMILESError,
-    ChemicalProcessingError,
-    DescriptorCalculationError,
-    ModelPredictionError,
-    PubChemAPIError,
+    MavhirInvalidSMILESError,
+    MavhirDescriptorCalculationError,
+    MavhirPubChemAPIError,
 )
 
 
@@ -70,7 +66,7 @@ class TestChemicalProcessor:
         """Test canonical SMILES with invalid input."""
         processor = create_chemical_processor()
 
-        with pytest.raises(InvalidSMILESError):
+        with pytest.raises(MavhirInvalidSMILESError):
             processor.get_canonical_smiles("invalid_smiles")
 
     def test_batch_processing(self):
@@ -122,7 +118,7 @@ class TestDescriptorCalculator:
         """Test descriptor calculation for invalid SMILES."""
         calculator = create_descriptor_calculator()
 
-        with pytest.raises(DescriptorCalculationError):
+        with pytest.raises(MavhirDescriptorCalculationError):
             calculator.calculate_cached("invalid_smiles")
 
     def test_descriptor_names(self):
@@ -157,7 +153,7 @@ class TestDescriptorCalculator:
 
         calculator = create_descriptor_calculator()
 
-        with pytest.raises(DescriptorCalculationError):
+        with pytest.raises(MavhirDescriptorCalculationError):
             calculator.calculate_cached("CCO")
 
 
@@ -298,7 +294,7 @@ class TestPubChemClient:
 
         client = create_pubchem_client()
 
-        with pytest.raises(PubChemAPIError):
+        with pytest.raises(MavhirPubChemAPIError):
             client.search_by_name("test_compound")
 
     @patch("app.services.pubchem_client.requests.Session.get")
@@ -313,7 +309,7 @@ class TestPubChemClient:
 
         client = create_pubchem_client()
 
-        with pytest.raises(PubChemAPIError):
+        with pytest.raises(MavhirPubChemAPIError):
             client.search_by_name("test_compound")
 
 

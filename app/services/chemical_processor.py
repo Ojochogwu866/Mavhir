@@ -1,11 +1,9 @@
-"""
-Chemical structure processing service using RDKit.
-"""
-
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 from functools import lru_cache
 from dataclasses import dataclass
+import time
+import threading
 
 from rdkit import Chem
 from rdkit.Chem import Descriptors, rdMolDescriptors, Crippen, Lipinski
@@ -14,11 +12,12 @@ from rdkit import RDLogger
 
 from ..core.config import get_settings
 from ..core.exceptions import (
-    ChemicalProcessingError,
-    InvalidSMILESError,
-    MoleculeStandardizationError,
+    MavhirChemicalProcessingError,
+    MavhirInvalidSMILESError,
+    MavhirMolecularStandardizationError,
 )
 
+# Disable RDKit warnings
 RDLogger.DisableLog("rdApp.*")
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class MolecularProperties:
     """
-    Basic molecular properties calculated from structure.
+    Enhanced molecular properties calculated from structure.
     """
 
     molecular_weight: float
@@ -39,11 +38,18 @@ class MolecularProperties:
     num_hbd: int  # Hydrogen bond donors
     num_hba: int  # Hydrogen bond acceptors
 
+    # Additional properties
+    num_saturated_rings: int
+    num_aliphatic_rings: int
+    fraction_csp3: float
+    num_radical_electrons: int
+    formal_charge: int
+
 
 @dataclass
 class ProcessedMolecule:
     """
-    Result of chemical structure processing.
+    Enhanced result of chemical structure processing.
     """
 
     original_smiles: str
@@ -52,121 +58,107 @@ class ProcessedMolecule:
     properties: MolecularProperties
     is_valid: bool
     errors: List[str]
+    warnings: List[str]
+    processing_time: float
     rdkit_mol: Optional[Chem.Mol] = None
 
 
-class MoleculeStandardizer:
+@dataclass
+class ValidationResult:
     """
-    Handles molecular structure standardization using RDKit.
+    Comprehensive SMILES validation result.
+    """
+
+    is_valid: bool
+    smiles: str
+    canonical_smiles: Optional[str]
+    errors: List[str]
+    warnings: List[str]
+    basic_properties: Optional[Dict[str, Any]]
+
+
+class EnhancedMoleculeStandardizer:
+    """
+    Enhanced molecular structure standardization using RDKit.
     """
 
     def __init__(self):
-        """Initialize standardization components."""
+        """Initialize standardization components with error handling."""
         try:
             self.normalizer = rdMolStandardize.Normalizer()
             self.largest_fragment_chooser = rdMolStandardize.LargestFragmentChooser()
             self.uncharger = rdMolStandardize.Uncharger()
             self.tautomer_enumerator = rdMolStandardize.TautomerEnumerator()
 
-            logger.debug("MoleculeStandardizer initialized successfully")
+            self._lock = threading.Lock()
+
+            logger.debug("Enhanced MoleculeStandardizer initialized successfully")
 
         except Exception as e:
             logger.error(f"Failed to initialize MoleculeStandardizer: {e}")
-            raise ChemicalProcessingError(f"Standardizer initialization failed: {e}")
+            raise MavhirChemicalProcessingError(
+                f"Standardizer initialization failed: {e}"
+            )
 
-    def standardize(self, mol: Chem.Mol, smiles: str) -> Chem.Mol:
+    def standardize(
+        self, mol: Chem.Mol, smiles: str, quick_mode: bool = False
+    ) -> Chem.Mol:
         """
-        Apply full standardization pipeline.
-
-        PARAMETERS:
-            mol: RDKit molecule object
-            smiles: Original SMILES (for error reporting)
-
-        RETURNS:
-            Standardized RDKit molecule
-
-        RAISES:
-            MoleculeStandardizationError: If any step fails
+        Apply standardization pipeline with thread safety.
         """
         if mol is None:
-            raise MoleculeStandardizationError(
+            raise MavhirMolecularStandardizationError(
                 smiles, "parse", "Input molecule is None"
             )
 
-        try:
-            mol = self.normalizer.normalize(mol)
-            if mol is None:
-                raise MoleculeStandardizationError(
-                    smiles, "normalize", "Normalization returned None"
+        with self._lock: 
+            try:
+                mol = self.normalizer.normalize(mol)
+                if mol is None:
+                    raise MavhirMolecularStandardizationError(
+                        smiles, "normalize", "Normalization returned None"
+                    )
+
+                mol = self.largest_fragment_chooser.choose(mol)
+                if mol is None:
+                    raise MavhirMolecularStandardizationError(
+                        smiles, "fragment_selection", "Fragment selection returned None"
+                    )
+
+                mol = self.uncharger.uncharge(mol)
+                if mol is None:
+                    raise MavhirMolecularStandardizationError(
+                        smiles, "neutralize", "Charge neutralization returned None"
+                    )
+
+                if not quick_mode:
+                    mol = self.tautomer_enumerator.Canonicalize(mol)
+                    if mol is None:
+                        raise MavhirMolecularStandardizationError(
+                            smiles,
+                            "tautomer_canonicalization",
+                            "Tautomer canonicalization returned None",
+                        )
+
+                return mol
+
+            except MavhirMolecularStandardizationError:
+                raise
+            except Exception as e:
+                raise MavhirMolecularStandardizationError(
+                    smiles, "unknown", f"Unexpected standardization error: {e}"
                 )
 
-            mol = self.largest_fragment_chooser.choose(mol)
-            if mol is None:
-                raise MoleculeStandardizationError(
-                    smiles, "fragment_selection", "Fragment selection returned None"
-                )
 
-            mol = self.uncharger.uncharge(mol)
-            if mol is None:
-                raise MoleculeStandardizationError(
-                    smiles, "neutralize", "Charge neutralization returned None"
-                )
-
-            mol = self.tautomer_enumerator.Canonicalize(mol)
-            if mol is None:
-                raise MoleculeStandardizationError(
-                    smiles,
-                    "tautomer_canonicalization",
-                    "Tautomer canonicalization returned None",
-                )
-
-            return mol
-
-        except MoleculeStandardizationError:
-
-            raise
-        except Exception as e:
-            # Catch any other RDKit errors
-            raise MoleculeStandardizationError(
-                smiles, "unknown", f"Unexpected error: {e}"
-            )
-
-    def quick_standardize(self, mol: Chem.Mol, smiles: str) -> Chem.Mol:
-        """
-        Fast standardization without tautomer canonicalization.
-        """
-        if mol is None:
-            raise MoleculeStandardizationError(
-                smiles, "parse", "Input molecule is None"
-            )
-
-        try:
-            mol = self.normalizer.normalize(mol)
-            mol = self.largest_fragment_chooser.choose(mol)
-            mol = self.uncharger.uncharge(mol)
-
-            if mol is None:
-                raise MoleculeStandardizationError(
-                    smiles, "quick_standardize", "Quick standardization failed"
-                )
-
-            return mol
-
-        except Exception as e:
-            raise MoleculeStandardizationError(
-                smiles, "quick_standardize", f"Quick standardization error: {e}"
-            )
-
-
-class PropertyCalculator:
+class EnhancedPropertyCalculator:
     """
-    Calculates molecular properties essential for toxicity prediction.
+    Enhanced molecular property calculator with comprehensive metrics.
     """
 
     @staticmethod
     def calculate_properties(mol: Chem.Mol) -> MolecularProperties:
         """
-        Calculate core molecular properties.
+        Calculate comprehensive molecular properties.
         """
         try:
             molecular_weight = float(Descriptors.MolWt(mol))
@@ -174,11 +166,24 @@ class PropertyCalculator:
             tpsa = float(rdMolDescriptors.CalcTPSA(mol))
 
             num_heavy_atoms = int(mol.GetNumHeavyAtoms())
-            num_aromatic_rings = int(rdMolDescriptors.CalcNumAromaticRings(mol))
-            num_rotatable_bonds = int(rdMolDescriptors.CalcNumRotatableBonds(mol))
-
             num_hbd = int(rdMolDescriptors.CalcNumHBD(mol))
             num_hba = int(rdMolDescriptors.CalcNumHBA(mol))
+
+            num_aromatic_rings = int(rdMolDescriptors.CalcNumAromaticRings(mol))
+            num_saturated_rings = int(rdMolDescriptors.CalcNumSaturatedRings(mol))
+            num_aliphatic_rings = int(rdMolDescriptors.CalcNumAliphaticRings(mol))
+
+            num_rotatable_bonds = int(rdMolDescriptors.CalcNumRotatableBonds(mol))
+
+            try:
+                fraction_csp3 = float(rdMolDescriptors.CalcFractionCsp3(mol))
+            except:
+                fraction_csp3 = 0.0
+
+            formal_charge = int(Chem.rdmolops.GetFormalCharge(mol))
+            num_radical_electrons = sum(
+                atom.GetNumRadicalElectrons() for atom in mol.GetAtoms()
+            )
 
             return MolecularProperties(
                 molecular_weight=molecular_weight,
@@ -189,44 +194,54 @@ class PropertyCalculator:
                 num_rotatable_bonds=num_rotatable_bonds,
                 num_hbd=num_hbd,
                 num_hba=num_hba,
+                num_saturated_rings=num_saturated_rings,
+                num_aliphatic_rings=num_aliphatic_rings,
+                fraction_csp3=fraction_csp3,
+                num_radical_electrons=num_radical_electrons,
+                formal_charge=formal_charge,
             )
 
         except Exception as e:
-            raise ChemicalProcessingError(f"Property calculation failed: {e}")
+            raise MavhirChemicalProcessingError(f"Property calculation failed: {e}")
 
     @staticmethod
-    def assess_drug_likeness(properties: MolecularProperties) -> Dict[str, Any]:
+    def assess_drug_likeness(
+        self: str, properties: MolecularProperties
+    ) -> Dict[str, Any]:
         """
-        Assess drug-likeness using established pharmaceutical rules.
+        Enhanced drug-likeness assessment using multiple rule sets.
         """
-
         lipinski_violations = []
-
         if properties.molecular_weight > 500:
             lipinski_violations.append(f"MW > 500 ({properties.molecular_weight:.1f})")
-
         if properties.logp > 5:
             lipinski_violations.append(f"LogP > 5 ({properties.logp:.2f})")
-
         if properties.num_hbd > 5:
             lipinski_violations.append(f"HBD > 5 ({properties.num_hbd})")
-
         if properties.num_hba > 10:
             lipinski_violations.append(f"HBA > 10 ({properties.num_hba})")
 
         lipinski_passed = len(lipinski_violations) <= 1
 
         veber_violations = []
-
         if properties.num_rotatable_bonds > 10:
             veber_violations.append(
                 f"Rotatable bonds > 10 ({properties.num_rotatable_bonds})"
             )
-
         if properties.tpsa > 140:
             veber_violations.append(f"TPSA > 140 ({properties.tpsa:.1f})")
 
         veber_passed = len(veber_violations) == 0
+
+        lead_like_violations = []
+        if properties.molecular_weight > 350:
+            lead_like_violations.append(f"MW > 350 ({properties.molecular_weight:.1f})")
+        if properties.logp > 3:
+            lead_like_violations.append(f"LogP > 3 ({properties.logp:.2f})")
+
+        lead_like_passed = len(lead_like_violations) == 0
+
+        overall_drug_like = lipinski_passed and veber_passed
 
         return {
             "lipinski": {
@@ -239,83 +254,196 @@ class PropertyCalculator:
                 "passed": veber_passed,
                 "details": veber_violations,
             },
-            "overall_drug_like": lipinski_passed and veber_passed,
+            "lead_like": {
+                "violations": len(lead_like_violations),
+                "passed": lead_like_passed,
+                "details": lead_like_violations,
+            },
+            "overall_drug_like": overall_drug_like,
+            "recommendation": self._get_drug_likeness_recommendation(
+                lipinski_passed, veber_passed, lead_like_passed
+            ),
         }
 
+    @staticmethod
+    def _get_drug_likeness_recommendation(
+        lipinski: bool, veber: bool, lead_like: bool
+    ) -> str:
+        """Get recommendation based on rule compliance."""
+        if lipinski and veber and lead_like:
+            return "Excellent drug-like properties"
+        elif lipinski and veber:
+            return "Good drug-like properties"
+        elif lipinski or veber:
+            return "Moderate drug-like properties"
+        else:
+            return "Poor drug-like properties"
 
-class ChemicalProcessor:
+
+class EnhancedChemicalProcessor:
     """
-    Main service for chemical structure processing.
+    Enhanced chemical processor with comprehensive validation and monitoring.
     """
 
     def __init__(self):
-        """Initialize chemical processor with all components."""
+        """Initialize enhanced chemical processor."""
         self.settings = get_settings()
-
-        self.standardizer = MoleculeStandardizer()
-        self.property_calculator = PropertyCalculator()
+        self.standardizer = EnhancedMoleculeStandardizer()
+        self.property_calculator = EnhancedPropertyCalculator()
 
         self.enable_standardization = self.settings.enable_molecule_standardization
         self.timeout_seconds = self.settings.standardization_timeout
+        self.max_smiles_length = getattr(self.settings, "max_smiles_length", 1000)
+        self.max_heavy_atoms = getattr(self.settings, "max_heavy_atoms", 200)
 
-        logger.info(
-            f"ChemicalProcessor initialized (standardization: {self.enable_standardization})"
-        )
+        self._stats = {
+            "total_processed": 0,
+            "successful": 0,
+            "failed": 0,
+            "standardized": 0,
+            "total_processing_time": 0.0,
+        }
+        self._stats_lock = threading.Lock()
 
-    def process_smiles(
-        self, smiles: str, quick_mode: bool = False
-    ) -> ProcessedMolecule:
+        logger.info(f"Enhanced ChemicalProcessor initialized")
+
+    def validate_smiles_comprehensive(self, smiles: str) -> ValidationResult:
         """
-        Process a single SMILES string through the full pipeline.
+        Comprehensive SMILES validation with detailed feedback.
         """
-
-        smiles = smiles.strip()
-
-        if not smiles:
-            return self._create_invalid_molecule(smiles, ["Empty SMILES string"])
+        start_time = time.time()
+        errors = []
+        warnings = []
 
         try:
-            # Step 1: Parse SMILES to RDKit molecule
+            smiles = smiles.strip()
+            if not smiles:
+                errors.append("Empty SMILES string")
+                return ValidationResult(False, smiles, None, errors, warnings, None)
+
+            if len(smiles) > self.max_smiles_length:
+                errors.append(f"SMILES too long (>{self.max_smiles_length} characters)")
+                return ValidationResult(False, smiles, None, errors, warnings, None)
+
+            import re
+
+            pattern = r"^[A-Za-z0-9@+\-\[\]()=#%/\\.\\\\:]+$"
+            if not re.match(pattern, smiles):
+                errors.append("SMILES contains invalid characters")
+                return ValidationResult(False, smiles, None, errors, warnings, None)
+
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
-                return self._create_invalid_molecule(smiles, ["Invalid SMILES format"])
+                errors.append("Cannot parse SMILES with RDKit")
+                return ValidationResult(False, smiles, None, errors, warnings, None)
 
-            # Step 2: Standardize molecule (if enabled)
+            num_heavy_atoms = mol.GetNumHeavyAtoms()
+            if num_heavy_atoms == 0:
+                errors.append("Molecule has no heavy atoms")
+                return ValidationResult(False, smiles, None, errors, warnings, None)
+
+            if num_heavy_atoms > self.max_heavy_atoms:
+                warnings.append(f"Large molecule ({num_heavy_atoms} heavy atoms)")
+
+            canonical_smiles = Chem.MolToSmiles(mol, canonical=True)
+
+            basic_properties = {
+                "molecular_weight": Descriptors.MolWt(mol),
+                "num_heavy_atoms": num_heavy_atoms,
+                "num_rings": rdMolDescriptors.CalcNumRings(mol),
+                "is_aromatic": any(atom.GetIsAromatic() for atom in mol.GetAtoms()),
+            }
+
+            if num_heavy_atoms > 100:
+                warnings.append("Very large molecule")
+            if basic_properties["molecular_weight"] > 1000:
+                warnings.append("High molecular weight")
+
+            return ValidationResult(
+                is_valid=True,
+                smiles=smiles,
+                canonical_smiles=canonical_smiles,
+                errors=errors,
+                warnings=warnings,
+                basic_properties=basic_properties,
+            )
+
+        except Exception as e:
+            errors.append(f"Validation error: {str(e)}")
+            return ValidationResult(False, smiles, None, errors, warnings, None)
+
+        finally:
+            processing_time = time.time() - start_time
+            logger.debug(f"SMILES validation took {processing_time:.3f}s")
+
+    def process_smiles_enhanced(
+        self, smiles: str, quick_mode: bool = False, validate_only: bool = False
+    ) -> ProcessedMolecule:
+        """
+        Enhanced SMILES processing with comprehensive validation and monitoring.
+        """
+        start_time = time.time()
+
+        with self._stats_lock:
+            self._stats["total_processed"] += 1
+
+        try:
+            validation = self.validate_smiles_comprehensive(smiles)
+
+            if not validation.is_valid:
+                processing_time = time.time() - start_time
+                self._update_stats(success=False, processing_time=processing_time)
+                return self._create_invalid_molecule(
+                    smiles, validation.errors, validation.warnings, processing_time
+                )
+
+            if validate_only:
+                processing_time = time.time() - start_time
+                self._update_stats(success=True, processing_time=processing_time)
+
+                return ProcessedMolecule(
+                    original_smiles=smiles,
+                    canonical_smiles=validation.canonical_smiles,
+                    molecular_formula="",
+                    properties=self._create_minimal_properties(
+                        validation.basic_properties
+                    ),
+                    is_valid=True,
+                    errors=[],
+                    warnings=validation.warnings,
+                    processing_time=processing_time,
+                    rdkit_mol=None,
+                )
+
+            mol = Chem.MolFromSmiles(smiles)
+
             if self.enable_standardization:
                 try:
-                    if quick_mode:
-                        mol = self.standardizer.quick_standardize(mol, smiles)
-                    else:
-                        mol = self.standardizer.standardize(mol, smiles)
-                except MoleculeStandardizationError as e:
-                    return self._create_invalid_molecule(smiles, [e.message])
+                    mol = self.standardizer.standardize(
+                        mol, smiles, quick_mode=quick_mode
+                    )
+                    with self._stats_lock:
+                        self._stats["standardized"] += 1
+                except MavhirMolecularStandardizationError as e:
+                    processing_time = time.time() - start_time
+                    self._update_stats(success=False, processing_time=processing_time)
+                    return self._create_invalid_molecule(
+                        smiles, [e.message], [], processing_time
+                    )
 
-            # Step 3: Generate canonical SMILES
-            try:
-                canonical_smiles = Chem.MolToSmiles(mol, canonical=True)
-            except Exception as e:
-                return self._create_invalid_molecule(
-                    smiles, [f"Failed to generate canonical SMILES: {e}"]
-                )
+            canonical_smiles = Chem.MolToSmiles(mol, canonical=True)
 
-            # Step 4: Calculate molecular formula
             try:
                 molecular_formula = rdMolDescriptors.CalcMolFormula(mol)
-            except Exception as e:
+            except:
                 molecular_formula = "Unknown"
-                logger.warning(
-                    f"Molecular formula calculation failed for {smiles}: {e}"
-                )
+                logger.warning(f"Could not calculate molecular formula for {smiles}")
 
-            # Step 5: Calculate properties
-            try:
-                properties = self.property_calculator.calculate_properties(mol)
-            except Exception as e:
-                return self._create_invalid_molecule(
-                    smiles, [f"Property calculation failed: {e}"]
-                )
+            properties = self.property_calculator.calculate_properties(mol)
 
-            # Step 6: Create successful result
+            processing_time = time.time() - start_time
+            self._update_stats(success=True, processing_time=processing_time)
+
             return ProcessedMolecule(
                 original_smiles=smiles,
                 canonical_smiles=canonical_smiles,
@@ -323,79 +451,180 @@ class ChemicalProcessor:
                 properties=properties,
                 is_valid=True,
                 errors=[],
+                warnings=validation.warnings,
+                processing_time=processing_time,
                 rdkit_mol=mol,
             )
 
         except Exception as e:
-            # Catch any unexpected errors
-            logger.error(f"Unexpected error processing SMILES '{smiles}': {e}")
+            processing_time = time.time() - start_time
+            self._update_stats(success=False, processing_time=processing_time)
+            logger.error(f"Enhanced processing failed for '{smiles}': {e}")
             return self._create_invalid_molecule(
-                smiles, [f"Unexpected processing error: {e}"]
+                smiles, [f"Processing error: {e}"], [], processing_time
             )
 
-    def process_smiles_batch(
-        self, smiles_list: List[str], quick_mode: bool = False
+    def process_smiles_batch_enhanced(
+        self,
+        smiles_list: List[str],
+        quick_mode: bool = False,
+        validate_only: bool = False,
+        max_workers: int = 4,
     ) -> List[ProcessedMolecule]:
         """
-        Process a batch of SMILES strings.
+        Enhanced batch processing with optional parallelization.
         """
         if not smiles_list:
             return []
 
         logger.info(
-            f"Processing batch of {len(smiles_list)} SMILES (quick_mode: {quick_mode})"
+            f"Processing batch of {len(smiles_list)} SMILES "
+            f"(quick_mode: {quick_mode}, validate_only: {validate_only})"
         )
 
         results = []
         successful = 0
         failed = 0
 
-        for i, smiles in enumerate(smiles_list):
-            try:
-                result = self.process_smiles(smiles, quick_mode=quick_mode)
-                results.append(result)
-
-                if result.is_valid:
-                    successful += 1
-                else:
-                    failed += 1
-
-            except Exception as e:
-                logger.error(f"Unexpected error in batch processing at index {i}: {e}")
-                results.append(
-                    self._create_invalid_molecule(
-                        smiles, [f"Batch processing error: {e}"]
+        if len(smiles_list) <= 10 or max_workers == 1:
+            for i, smiles in enumerate(smiles_list):
+                try:
+                    result = self.process_smiles_enhanced(
+                        smiles, quick_mode=quick_mode, validate_only=validate_only
                     )
-                )
-                failed += 1
+                    results.append(result)
+
+                    if result.is_valid:
+                        successful += 1
+                    else:
+                        failed += 1
+
+                except Exception as e:
+                    logger.error(f"Batch processing error at index {i}: {e}")
+                    error_result = self._create_invalid_molecule(
+                        smiles, [f"Batch processing error: {e}"], [], 0.0
+                    )
+                    results.append(error_result)
+                    failed += 1
+        else:
+            import concurrent.futures
+
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as executor:
+                future_to_smiles = {
+                    executor.submit(
+                        self.process_smiles_enhanced, smiles, quick_mode, validate_only
+                    ): (i, smiles)
+                    for i, smiles in enumerate(smiles_list)
+                }
+
+                indexed_results = {}
+                for future in concurrent.futures.as_completed(future_to_smiles):
+                    i, smiles = future_to_smiles[future]
+                    try:
+                        result = future.result()
+                        indexed_results[i] = result
+                        if result.is_valid:
+                            successful += 1
+                        else:
+                            failed += 1
+                    except Exception as e:
+                        logger.error(
+                            f"Parallel processing error for SMILES at index {i}: {e}"
+                        )
+                        error_result = self._create_invalid_molecule(
+                            smiles, [f"Parallel processing error: {e}"], [], 0.0
+                        )
+                        indexed_results[i] = error_result
+                        failed += 1
+
+                results = [indexed_results[i] for i in range(len(smiles_list))]
 
         success_rate = (successful / len(smiles_list)) * 100
         logger.info(
-            f"Batch processing complete: {successful} successful, {failed} failed ({success_rate:.1f}% success rate)"
+            f"Batch processing complete: {successful} successful, {failed} failed "
+            f"({success_rate:.1f}% success rate)"
         )
 
         return results
 
     @lru_cache(maxsize=1000)
-    def get_canonical_smiles(self, smiles: str) -> str:
+    def get_canonical_smiles_cached(self, smiles: str) -> str:
         """
         Get canonical SMILES with caching.
         """
         try:
             mol = Chem.MolFromSmiles(smiles.strip())
             if mol is None:
-                raise InvalidSMILESError(smiles, "Cannot parse SMILES")
-
+                raise MavhirInvalidSMILESError(smiles, "Cannot parse SMILES")
             return Chem.MolToSmiles(mol, canonical=True)
-
         except Exception as e:
-            raise InvalidSMILESError(smiles, str(e))
+            raise MavhirInvalidSMILESError(smiles, str(e))
+
+    def get_statistics(self) -> Dict[str, Any]:
+        """Get comprehensive processing statistics."""
+        with self._stats_lock:
+            stats = self._stats.copy()
+
+        cache_info = self.get_canonical_smiles_cached.cache_info()
+
+        if stats["total_processed"] > 0:
+            success_rate = (stats["successful"] / stats["total_processed"]) * 100
+            avg_processing_time = (
+                stats["total_processing_time"] / stats["total_processed"]
+            )
+            standardization_rate = (
+                stats["standardized"] / stats["total_processed"]
+            ) * 100
+        else:
+            success_rate = 0.0
+            avg_processing_time = 0.0
+            standardization_rate = 0.0
+
+        return {
+            "processing_stats": {
+                **stats,
+                "success_rate": success_rate,
+                "average_processing_time": avg_processing_time,
+                "standardization_rate": standardization_rate,
+            },
+            "configuration": {
+                "standardization_enabled": self.enable_standardization,
+                "timeout_seconds": self.timeout_seconds,
+                "max_smiles_length": self.max_smiles_length,
+                "max_heavy_atoms": self.max_heavy_atoms,
+            },
+            "canonical_cache": {
+                "hits": cache_info.hits,
+                "misses": cache_info.misses,
+                "current_size": cache_info.currsize,
+                "max_size": cache_info.maxsize,
+                "hit_rate": (
+                    cache_info.hits / (cache_info.hits + cache_info.misses) * 100
+                    if (cache_info.hits + cache_info.misses) > 0
+                    else 0.0
+                ),
+            },
+        }
+
+    def _update_stats(self, success: bool, processing_time: float) -> None:
+        """Update processing statistics thread-safely."""
+        with self._stats_lock:
+            if success:
+                self._stats["successful"] += 1
+            else:
+                self._stats["failed"] += 1
+            self._stats["total_processing_time"] += processing_time
 
     def _create_invalid_molecule(
-        self, smiles: str, errors: List[str]
+        self,
+        smiles: str,
+        errors: List[str],
+        warnings: List[str],
+        processing_time: float,
     ) -> ProcessedMolecule:
         """Create ProcessedMolecule for invalid input."""
-
         empty_properties = MolecularProperties(
             molecular_weight=0.0,
             logp=0.0,
@@ -405,6 +634,11 @@ class ChemicalProcessor:
             num_rotatable_bonds=0,
             num_hbd=0,
             num_hba=0,
+            num_saturated_rings=0,
+            num_aliphatic_rings=0,
+            fraction_csp3=0.0,
+            num_radical_electrons=0,
+            formal_charge=0,
         )
 
         return ProcessedMolecule(
@@ -414,32 +648,37 @@ class ChemicalProcessor:
             properties=empty_properties,
             is_valid=False,
             errors=errors,
+            warnings=warnings,
+            processing_time=processing_time,
             rdkit_mol=None,
         )
 
-    def get_statistics(self) -> Dict[str, Any]:
-        """Get processing statistics for monitoring."""
-        cache_info = self.get_canonical_smiles.cache_info()
+    def _create_minimal_properties(
+        self, basic_props: Dict[str, Any]
+    ) -> MolecularProperties:
+        """Create minimal properties for validation-only mode."""
+        return MolecularProperties(
+            molecular_weight=basic_props.get("molecular_weight", 0.0),
+            logp=0.0,
+            tpsa=0.0,
+            num_heavy_atoms=basic_props.get("num_heavy_atoms", 0),
+            num_aromatic_rings=0,
+            num_rotatable_bonds=0,
+            num_hbd=0,
+            num_hba=0,
+            num_saturated_rings=0,
+            num_aliphatic_rings=0,
+            fraction_csp3=0.0,
+            num_radical_electrons=0,
+            formal_charge=0,
+        )
 
-        return {
-            "standardization_enabled": self.enable_standardization,
-            "timeout_seconds": self.timeout_seconds,
-            "canonical_cache": {
-                "hits": cache_info.hits,
-                "misses": cache_info.misses,
-                "current_size": cache_info.currsize,
-                "max_size": cache_info.maxsize,
-            },
-        }
 
-
-def create_chemical_processor() -> ChemicalProcessor:
+def create_chemical_processor() -> EnhancedChemicalProcessor:
     """
-    Factory function to create ChemicalProcessor.
-
-    Useful for dependency injection and testing.
+    Factory function to create EnhancedChemicalProcessor.
     """
-    return ChemicalProcessor()
+    return EnhancedChemicalProcessor()
 
 
 def validate_smiles_simple(smiles: str) -> bool:
@@ -453,73 +692,58 @@ def validate_smiles_simple(smiles: str) -> bool:
         return False
 
 
-def _test_chemical_processor():
-    """Test function for development and debugging."""
+def create_chemical_processor_legacy():
+    """Legacy factory function for backward compatibility."""
+    return create_chemical_processor()
 
+
+if __name__ == "__main__":
     processor = create_chemical_processor()
 
     test_cases = [
         ("CCO", "Valid simple molecule - ethanol"),
         ("CC(=O)O", "Valid carboxylic acid - acetic acid"),
         ("c1ccccc1", "Valid aromatic - benzene"),
-        ("[Na+].[Cl-]", "Salt - should be desalted to Cl"),
-        ("CC(=O)[O-]", "Charged molecule - should be neutralized"),
+        ("[Na+].[Cl-]", "Salt - should be desalted"),
         ("invalid_smiles", "Invalid SMILES"),
         ("", "Empty string"),
-        ("C" * 1000, "Very long SMILES"),
     ]
 
-    print("Testing ChemicalProcessor:")
+    print("Testing Enhanced ChemicalProcessor:")
     print("=" * 60)
 
     for smiles, description in test_cases:
         print(f"\nTest: {description}")
-        print(f"Input: {smiles[:50]}{'...' if len(smiles) > 50 else ''}")
+        print(f"Input: {smiles}")
 
         try:
-            result = processor.process_smiles(smiles)
+            result = processor.process_smiles_enhanced(smiles)
 
             if result.is_valid:
                 print(f"   SUCCESS")
                 print(f"   Canonical: {result.canonical_smiles}")
                 print(f"   Formula: {result.molecular_formula}")
                 print(f"   MW: {result.properties.molecular_weight:.2f}")
-                print(f"   LogP: {result.properties.logp:.2f}")
-
-                # Test drug-likeness
-                drug_assessment = processor.property_calculator.assess_drug_likeness(
-                    result.properties
-                )
-                print(f"   Drug-like: {drug_assessment['overall_drug_like']}")
-
+                print(f"   Processing time: {result.processing_time:.3f}s")
+                if result.warnings:
+                    print(f"   Warnings: {', '.join(result.warnings)}")
             else:
-                print(f"FAILED")
+                print(f"   FAILED")
                 print(f"   Errors: {', '.join(result.errors)}")
+                if result.warnings:
+                    print(f"   Warnings: {', '.join(result.warnings)}")
 
         except Exception as e:
-            print(f"EXCEPTION: {e}")
+            print(f"   EXCEPTION: {e}")
 
-    # Test batch processing
     print(f"\n{'='*60}")
-    print("Testing batch processing:")
-
-    batch_smiles = ["CCO", "CC(=O)O", "invalid", "c1ccccc1"]
-    results = processor.process_smiles_batch(batch_smiles)
-
-    print(f"Batch size: {len(batch_smiles)}")
-    print(f"Results: {len(results)}")
-
-    for i, result in enumerate(results):
-        status = "" if result.is_valid else "❌"
-        print(f"  {i}: {status} {result.original_smiles} → {result.canonical_smiles}")
-
-    # Show statistics
-    print(f"\n{'='*60}")
-    print("Processor statistics:")
+    print("Enhanced Processor Statistics:")
     stats = processor.get_statistics()
-    for key, value in stats.items():
+
+    print("Processing Stats:")
+    for key, value in stats["processing_stats"].items():
         print(f"  {key}: {value}")
 
-
-if __name__ == "__main__":
-    _test_chemical_processor()
+    print("Cache Stats:")
+    for key, value in stats["canonical_cache"].items():
+        print(f"  {key}: {value}")

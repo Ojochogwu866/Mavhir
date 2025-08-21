@@ -1,7 +1,3 @@
-"""
-PubChem API client for chemical database lookups.
-"""
-
 import logging
 import asyncio
 import time
@@ -11,10 +7,8 @@ from dataclasses import dataclass
 
 from ..core.config import get_settings
 from ..core.exceptions import (
-    PubChemError,
-    PubChemAPIError,
-    PubChemNotFoundError,
-    PubChemRateLimitError,
+    MavhirPubChemError,
+    MavhirPubChemAPIError,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,8 +26,6 @@ class CompoundInfo:
     synonyms: Optional[list]
     found: bool
 
-
-# PUBCHEM API CLIENT
 class PubChemClient:
     """
     Simple PubChem REST API client.
@@ -91,11 +83,11 @@ class PubChemClient:
 
             return self._get_compound_properties(cid, query_name=name)
 
-        except PubChemError:
+        except MavhirPubChemError:
             raise
         except Exception as e:
             logger.error(f"Unexpected error searching for '{name}': {e}")
-            raise PubChemAPIError(name, details=str(e))
+            raise MavhirPubChemAPIError(name, details=str(e))
 
     def get_by_cid(self, cid: int) -> CompoundInfo:
         """Get compound information by PubChem CID."""
@@ -103,7 +95,7 @@ class PubChemClient:
         try:
             return self._get_compound_properties(cid)
         except Exception as e:
-            raise PubChemAPIError(str(cid), details=str(e))
+            raise MavhirPubChemAPIError(str(cid), details=str(e))
 
     def _get_cid_by_name(self, name: str) -> Optional[int]:
         """Get PubChem CID from compound name."""
@@ -125,7 +117,7 @@ class PubChemClient:
             if e.response.status_code == 404:
                 return None  # Compound not found
             else:
-                raise PubChemAPIError(name, status_code=e.response.status_code)
+                raise MavhirPubChemAPIError(name, status_code=e.response.status_code)
 
     def _get_compound_properties(
         self, cid: int, query_name: Optional[str] = None
@@ -171,9 +163,11 @@ class PubChemClient:
 
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 404:
-                raise PubChemNotFoundError(str(cid))
+                raise MavhirPubChemAPIError(str(cid))
             else:
-                raise PubChemAPIError(str(cid), status_code=e.response.status_code)
+                raise MavhirPubChemAPIError(
+                    str(cid), status_code=e.response.status_code
+                )
 
     def _make_request(self, url: str) -> requests.Response:
         """
@@ -196,7 +190,7 @@ class PubChemClient:
 
                 if response.status_code == 429:
                     retry_after = int(response.headers.get("Retry-After", 60))
-                    raise PubChemRateLimitError(retry_after)
+                    raise MavhirPubChemAPIError(retry_after)
 
                 response.raise_for_status()
 
@@ -205,26 +199,22 @@ class PubChemClient:
             except requests.exceptions.Timeout:
                 logger.warning(f"PubChem request timeout (attempt {attempt + 1})")
                 if attempt == self.max_retries - 1:
-                    raise PubChemAPIError(url, details="Request timeout")
+                    raise MavhirPubChemAPIError(url, details="Request timeout")
 
             except requests.exceptions.ConnectionError:
                 logger.warning(f"PubChem connection error (attempt {attempt + 1})")
                 if attempt == self.max_retries - 1:
-                    raise PubChemAPIError(url, details="Connection error")
+                    raise MavhirPubChemAPIError(url, details="Connection error")
 
-            except PubChemRateLimitError:
-                # Don't retry rate limit errors
+            except MavhirPubChemAPIError:
                 raise
 
             except requests.exceptions.RequestException as e:
                 logger.error(f"PubChem request failed: {e}")
-                raise PubChemAPIError(url, details=str(e))
+                raise MavhirPubChemAPIError(url, details=str(e))
 
-        # Should never reach here
-        raise PubChemAPIError(url, details="Max retries exceeded")
+        raise MavhirPubChemAPIError(url, details="Max retries exceeded")
 
-
-# cf
 def create_pubchem_client() -> PubChemClient:
     """Factory function to create PubChemClient."""
     return PubChemClient()
@@ -235,8 +225,6 @@ def quick_lookup(name: str) -> CompoundInfo:
     client = create_pubchem_client()
     return client.search_by_name(name)
 
-
-# tf
 def _test_pubchem_client():
     """Test PubChem client with common compounds."""
 
@@ -268,7 +256,7 @@ def _test_pubchem_client():
             else:
                 print(f"Not found")
 
-        except PubChemError as e:
+        except MavhirPubChemError as e:
             print(f"  PubChem error: {e}")
         except Exception as e:
             print(f"Unexpected error: {e}")

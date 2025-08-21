@@ -2,7 +2,6 @@ import time
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, HTTPException, status, Depends, UploadFile, File
-from fastapi.responses import JSONResponse
 
 from ..core.config import get_settings, Settings
 from ..core.models import (
@@ -23,11 +22,10 @@ from ..services.chemical_processor import create_chemical_processor
 from ..services.descriptor_calculator import create_descriptor_calculator
 from ..services.predictor import create_predictor
 from ..core.exceptions import (
-    InvalidSMILESError,
-    DescriptorCalculationError,
-    ModelPredictionError,
-    BatchSizeError,
+    MavhirDescriptorCalculationError,
+    MavhirModelPredictionError,
 )
+from rdkit import Chem
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +61,7 @@ async def predict_smiles(
             descriptors = descriptor_calculator.calculate_cached(
                 processed_mol.canonical_smiles
             )
-        except DescriptorCalculationError as e:
+        except MavhirDescriptorCalculationError as e:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Descriptor calculation failed: {e.message}",
@@ -78,7 +76,7 @@ async def predict_smiles(
                 smiles=processed_mol.canonical_smiles,
                 endpoints=request.endpoints,
             )
-        except ModelPredictionError as e:
+        except MavhirModelPredictionError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Prediction failed: {e.message}",
@@ -375,21 +373,53 @@ async def _process_single_compound(
 
 
 def _parse_sdf_content(content: str) -> List[tuple]:
-    molecules = content.split("$$$$")
+    try:
+        results = []
 
-    results = []
-    for mol_block in molecules:
-        if not mol_block.strip():
-            continue
+        supplier = Chem.SDMolSupplier()
+        supplier.SetData(content)
 
-        lines = mol_block.strip().split("\n")
-        if len(lines) < 4:
-            continue
+        compound_count = 0
+        for mol in supplier:
+            if mol is not None:
+                try:
+                    name = None
+                    if mol.HasProp("_Name"):
+                        name = mol.GetProp("_Name")
+                    elif mol.HasProp("NAME"):
+                        name = mol.GetProp("NAME")
+                    elif mol.HasProp("Title"):
+                        name = mol.GetProp("Title")
+                    else:
+                        name = f"compound_{compound_count + 1}"
 
-        name = lines[0].strip() if lines else f"compound_{len(results)}"
+                    smiles = Chem.MolToSmiles(mol, canonical=True)
 
-        smiles = "CCO"  # Placeholder
+                    if smiles and smiles.strip():
+                        results.append((smiles, name))
+                        compound_count += 1
 
-        results.append((smiles, name))
+                except Exception as e:
+                    logger.warning(f"Failed to process molecule {compound_count}: {e}")
+                    continue
+            else:
+                logger.warning(f"Failed to parse molecule at index {compound_count}")
 
-    return results
+        if not results:
+            lines = content.strip().split("\n")
+            for i, line in enumerate(lines):
+                line = line.strip()
+                if line and not line.startswith("#") and not line.startswith(">"):
+                    try:
+                        mol = Chem.MolFromSmiles(line)
+                        if mol is not None:
+                            results.append((line, f"compound_{i+1}"))
+                    except:
+                        continue
+
+        logger.info(f"Successfully parsed {len(results)} compounds from SDF")
+        return results
+
+    except Exception as e:
+        logger.error(f"SDF parsing failed: {e}")
+        raise ValueError(f"Failed to parse SDF content: {str(e)}")
