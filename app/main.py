@@ -15,6 +15,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from .api import health, chemical, predict
 from .core.config import get_settings
 from .core.exceptions import MavhirError, create_error_response
+from .services.pubchem_client import create_pubchem_client
 
 logging.basicConfig(
     level=logging.INFO,
@@ -85,7 +86,6 @@ async def lifespan(app: FastAPI):
 
         try:
             from .services.predictor import create_predictor
-
             predictor = create_predictor()
 
             available_endpoints = predictor.get_available_endpoints()
@@ -93,7 +93,6 @@ async def lifespan(app: FastAPI):
                 startup_errors.append("No ML models available")
             else:
                 logger.info(f"ML Predictor: {len(available_endpoints)} models loaded")
-
                 test_prediction = predictor.predict(smiles="CCO")
                 if not test_prediction.predictions:
                     startup_errors.append("Model prediction test failed")
@@ -104,20 +103,8 @@ async def lifespan(app: FastAPI):
             startup_errors.append(f"ML predictor initialization failed: {e}")
 
         try:
-            from .services.pubchem_client import create_pubchem_client
-
             pubchem_client = create_pubchem_client()
-            try:
-                test_result = await asyncio.wait_for(
-                    asyncio.to_thread(pubchem_client.search_by_name, "water"),
-                    timeout=5.0,
-                )
-                logger.info("PubChem connectivity: OK")
-            except asyncio.TimeoutError:
-                logger.warning("PubChem connectivity: Timeout (will continue)")
-            except Exception as e:
-                logger.warning(f"PubChem connectivity: {e} (will continue)")
-
+            logger.info("PubChem client: OK")
         except Exception as e:
             logger.warning(f"PubChem client initialization failed: {e} (will continue)")
 
@@ -265,7 +252,7 @@ def _setup_middleware(app: FastAPI) -> None:
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
-        """Enhanced request logging."""
+        """Request logging."""
         start_time = time.time()
         request_id = getattr(request.state, "request_id", "unknown")
 
@@ -470,13 +457,6 @@ def _setup_error_handlers(app: FastAPI) -> None:
 
 
 app = create_application()
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Additional startup tasks."""
-    logger.info("🔥 Mavhir is ready to predict toxicity!")
-
 
 if __name__ == "__main__":
     import uvicorn

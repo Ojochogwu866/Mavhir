@@ -3,7 +3,6 @@ from datetime import datetime
 from pydantic import BaseModel, Field, field_validator, model_validator
 from enum import Enum
 import re
-from rdkit import Chem
 
 
 class ToxicityEndpoint(str, Enum):
@@ -59,7 +58,7 @@ class MolecularProperties(BaseModel):
 
     molecular_weight: float = Field(description="Molecular weight in Da", ge=0)
     logp: float = Field(description="Lipophilicity (LogP)", ge=-10, le=10)
-    tpsa: float = Field(description="Topological polar surface area in Ų", ge=0)
+    tpsa: float = Field(description="Topological polar surface area in Å²", ge=0)
     num_heavy_atoms: int = Field(
         description="Number of heavy (non-hydrogen) atoms", ge=0
     )
@@ -163,7 +162,7 @@ class PredictionResults(BaseModel):
 
 
 class SMILESPredictionRequest(BaseModel):
-    """Enhanced request model with proper SMILES validation."""
+    """Request model with basic SMILES validation."""
 
     smiles: str = Field(
         description="SMILES string representing the chemical structure",
@@ -186,36 +185,20 @@ class SMILESPredictionRequest(BaseModel):
     @field_validator("smiles")
     @classmethod
     def validate_smiles_format(cls, v: str) -> str:
-        """Enhanced SMILES validation using RDKit."""
+        """Basic SMILES validation - let the chemical processor handle detailed validation."""
         v = v.strip()
         if not v:
             raise ValueError("SMILES cannot be empty")
 
-        pattern = r"^[A-Za-z0-9@+\-\[\]()=#%/\\.\\\\:]+$"
-        if not re.match(pattern, v):
-            raise ValueError("SMILES contains invalid characters")
-
-        try:
-            mol = Chem.MolFromSmiles(v)
-            if mol is None:
-                raise ValueError("Invalid SMILES structure - cannot be parsed by RDKit")
-
-            if mol.GetNumAtoms() == 0:
-                raise ValueError("SMILES represents empty molecule")
-
-            if mol.GetNumHeavyAtoms() > 200:
-                raise ValueError("Molecule too large (>200 heavy atoms)")
-
-        except Exception as e:
-            if "Invalid SMILES structure" in str(e):
-                raise
-            raise ValueError(f"SMILES validation failed: {str(e)}")
+        # Basic character validation only
+        if len(v) > 1000:
+            raise ValueError("SMILES too long (>1000 characters)")
 
         return v
 
 
 class BatchPredictionRequest(BaseModel):
-    """Enhanced request model for batch SMILES prediction."""
+    """Request model for batch SMILES prediction."""
 
     smiles_list: List[str] = Field(
         description="List of SMILES strings",
@@ -242,7 +225,7 @@ class BatchPredictionRequest(BaseModel):
     @field_validator("smiles_list")
     @classmethod
     def validate_smiles_list(cls, v: List[str]) -> List[str]:
-        """Enhanced SMILES list validation."""
+        """Basic SMILES list validation."""
         if not v:
             raise ValueError("SMILES list cannot be empty")
 
@@ -255,10 +238,6 @@ class BatchPredictionRequest(BaseModel):
 
             if len(smiles) > 1000:
                 raise ValueError(f"SMILES at index {i} too long (>1000 characters)")
-
-            pattern = r"^[A-Za-z0-9@+\-\[\]()=#%/\\.\\\\:]+$"
-            if not re.match(pattern, smiles):
-                raise ValueError(f"SMILES at index {i} contains invalid characters")
 
             validated_smiles.append(smiles)
 
@@ -276,19 +255,6 @@ class BatchPredictionRequest(BaseModel):
             if len(set(v)) != len(v):
                 raise ValueError("Duplicate endpoints not allowed")
         return v
-
-    model_config = {
-        "json_schema_extra": {
-            "example": {
-                "smiles_list": ["CCO", "CC(=O)O", "c1ccccc1"],
-                "endpoints": ["ames_mutagenicity"],
-                "include_descriptors": False,
-                "include_properties": True,
-                "include_drug_likeness": False,
-                "fail_on_error": False,
-            }
-        }
-    }
 
     model_config = {
         "json_schema_extra": {

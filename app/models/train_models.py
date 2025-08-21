@@ -81,7 +81,7 @@ class ModelMetrics:
 
 @dataclass
 class ModelConfig:
-    """Enhanced model configuration."""
+    """ model configuration."""
 
     endpoint: ToxicityEndpoint
     model_type: ModelType
@@ -650,8 +650,7 @@ class ProductionDataGenerator:
             },
         ]
 
-
-class EnhancedDescriptorCalculator:
+class DescriptorCalculator:
 
     def __init__(self):
         """Initialize with comprehensive descriptor sets."""
@@ -817,11 +816,11 @@ class EnhancedDescriptorCalculator:
             return df
 
 
-class EnhancedModelTrainer:
+class ModelTrainer:
     def __init__(self, use_realistic_data: bool = True):
         """Initialize trainer."""
         self.use_realistic_data = use_realistic_data
-        self.descriptor_calculator = EnhancedDescriptorCalculator()
+        self.descriptor_calculator = DescriptorCalculator()
         self.data_generator = ProductionDataGenerator()
 
         logger.info("Model Trainer initialized")
@@ -1207,14 +1206,11 @@ def train_and_save_models():
     """Train models and save them to pickle files."""
     logger.info(" Training and saving models...")
     
-    # Initialize trainer
-    trainer = EnhancedModelTrainer(use_realistic_data=True)
+    trainer = ModelTrainer(use_realistic_data=True)
     
-    # Create models directory
     models_dir = Path("app/models")
     models_dir.mkdir(parents=True, exist_ok=True)
     
-    # Model configurations
     configs = [
         ModelConfig(
             endpoint=ToxicityEndpoint.AMES_MUTAGENICITY,

@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator, model_validator
 
-from exceptions import MavhirError
+from .exceptions import MavhirError
 
 class Settings(BaseSettings):
     """application settings with production-ready defaults."""
@@ -109,7 +109,7 @@ class Settings(BaseSettings):
     )
 
     pubchem_base_url: str = Field(
-        default="https://pubchem.ncbi.nlm.nih.gov",
+        default="https://pubchem.ncbi.nlm.nih.gov/rest/pug",
         description="PubChem API base URL",
     )
     pubchem_timeout: int = Field(
@@ -423,7 +423,7 @@ MAVHIR_BATCH_PROCESSING_TIMEOUT=300
 MAVHIR_MAX_CONCURRENT_PREDICTIONS=10
 
 # PubChem API Settings
-MAVHIR_PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov
+MAVHIR_PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov/rest/pug
 MAVHIR_PUBCHEM_TIMEOUT=10
 MAVHIR_PUBCHEM_RATE_LIMIT_DELAY=0.2
 MAVHIR_PUBCHEM_MAX_RETRIES=3
