@@ -2,12 +2,7 @@ from typing import Optional, Dict, Any, List, Callable
 from functools import wraps
 import time
 
-
 class MavhirError(Exception):
-    """
-    Base exception for all Mavhir application errors
-    """
-
     def __init__(
         self,
         message: str,
@@ -20,7 +15,6 @@ class MavhirError(Exception):
         self.context = context or {}
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert Exception to dictionary for API responses."""
         return {
             "error": self.error_code,
             "message": self.message,
@@ -61,9 +55,7 @@ class MavhirMolecularStandardizationError(MavhirChemicalProcessingError):
 
 class MavhirDescriptorCalculationError(MavhirError):
     """Base class for descriptor calculation errors"""
-
     pass
-
 
 class MavhirDescriptorTimeoutError(MavhirDescriptorCalculationError):
     """Raised when descriptor calculation times out"""
@@ -74,7 +66,6 @@ class MavhirDescriptorTimeoutError(MavhirDescriptorCalculationError):
             message, context={"smiles": smiles, "timeout_seconds": timeout_seconds}
         )
 
-
 class MavhirMissingDescriptorsError(MavhirDescriptorCalculationError):
     """Raised when required descriptors are missing from calculation results."""
 
@@ -82,13 +73,9 @@ class MavhirMissingDescriptorsError(MavhirDescriptorCalculationError):
         message = f"Missing required descriptors: {', '.join(missing_descriptors)}"
         super().__init__(message, context={"missing_descriptors": missing_descriptors})
 
-
 class MavhirModelError(MavhirError):
     """Base class for ML model-related errors."""
-
     pass
-
-
 class MavhirModelLoadError(MavhirModelError):
     """Raised when ML model loading fails"""
 
@@ -100,7 +87,6 @@ class MavhirModelLoadError(MavhirModelError):
         super().__init__(
             message, context={"model_path": model_path, "details": details}
         )
-
 
 class MavhirModelPredictionError(MavhirModelError):
     """Raised when model prediction fails"""
@@ -118,9 +104,7 @@ class MavhirModelPredictionError(MavhirModelError):
 
 class MavhirPubChemError(MavhirError):
     """Base class for PubChem API Errors"""
-
     pass
-
 
 class MavhirPubChemAPIError(MavhirPubChemError):
     """Raised when PubChem API request fails"""
@@ -142,12 +126,9 @@ class MavhirPubChemAPIError(MavhirPubChemError):
             context={"query": query, "status_code": status_code, "details": details},
         )
 
-
 class MavhirBatchProcessingError(MavhirError):
     """Raised when batch processing fails"""
-
     pass
-
 
 class MavhirBatchSizeError(MavhirBatchProcessingError):
     """Raised when batch size exceeds limits."""
@@ -160,10 +141,6 @@ class MavhirBatchSizeError(MavhirBatchProcessingError):
 
 
 def handle_rdkit_errors(func: Callable) -> Callable:
-    """
-    Decorator to convert RDKit errors to Mavhir custom exceptions.
-    """
-
     @wraps(func)
     def wrapper(*args, **kwargs):
         try:
@@ -176,14 +153,10 @@ def handle_rdkit_errors(func: Callable) -> Callable:
                 raise MavhirChemicalProcessingError(
                     f"RDKit operation failed: {e}"
                 ) from e
-
     return wrapper
 
 
 def create_error_response(exception: MavhirError) -> Dict[str, Any]:
-    """
-    Create standardized error response for API endpoints.
-    """
     return {
         "success": False,
         "error": exception.to_dict(),

@@ -1,35 +1,29 @@
-import os
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 from pydantic_settings import BaseSettings
 from pydantic import Field, field_validator, model_validator
 
-from .exceptions import MavhirError
-
+from exceptions import MavhirError
 
 class Settings(BaseSettings):
     """application settings with production-ready defaults."""
 
-    # Basic app settings
     app_name: str = Field(default="Mavhir", description="Application Name")
     version: str = Field(default="2.0.0", description="API version")
     environment: str = Field(default="development", description="Runtime Environment")
     debug: bool = Field(default=False, description="Enable debug mode")
 
-    # Server settings
     host: str = Field(default="0.0.0.0", description="Server host")
     port: int = Field(default=8000, ge=1, le=65535, description="Server port")
     workers: int = Field(
         default=1, ge=1, le=16, description="Number of worker processes"
     )
 
-    # API settings
     api_v1_prefix: str = Field(default="/api/v1", description="API v1 prefix")
     max_file_size_mb: int = Field(
         default=50, ge=1, le=1000, description="Maximum file size in MB"
     )
 
-    # Rate limiting
     rate_limit_per_minute: int = Field(
         default=100, ge=1, le=10000, description="Rate limit per minute"
     )
@@ -47,7 +41,6 @@ class Settings(BaseSettings):
     )
     cors_allow_headers: str = Field(default="*", description="Allowed CORS headers")
 
-    # Security settings
     enable_security_headers: bool = Field(
         default=True, description="Enable security headers"
     )
@@ -58,10 +51,8 @@ class Settings(BaseSettings):
         default="localhost,127.0.0.1,*.mavhir.com", description="Trusted hosts"
     )
 
-    # Model settings
     models_dir: str = Field(default="app/models", description="Models directory")
 
-    # Ames mutagenicity model
     ames_model_path: str = Field(
         default="app/models/ames_mutagenicity.pkl", description="Ames model path"
     )
@@ -73,7 +64,6 @@ class Settings(BaseSettings):
         default=0.5, ge=0.0, le=1.0, description="Ames classification threshold"
     )
 
-    # Carcinogenicity model
     carcinogenicity_model_path: str = Field(default="app/models/carcinogenicity.pkl")
     carcinogenicity_scaler_path: str = Field(
         default="app/models/carcinogenicity_scaler.pkl"
@@ -82,7 +72,6 @@ class Settings(BaseSettings):
         default=0.5, ge=0.0, le=1.0, description="Carcinogenicity threshold"
     )
 
-    # Chemical processing settings
     enable_molecule_standardization: bool = Field(
         default=True, description="Enable molecule standardization"
     )
@@ -96,7 +85,6 @@ class Settings(BaseSettings):
         default=200, ge=1, le=1000, description="Maximum heavy atoms"
     )
 
-    # Descriptor calculation settings
     descriptor_timeout: int = Field(
         default=60, ge=10, le=600, description="Descriptor calculation timeout"
     )
@@ -110,7 +98,6 @@ class Settings(BaseSettings):
         default=3600, ge=60, le=86400, description="Cache TTL in seconds"
     )
 
-    # Batch processing settings
     max_batch_size: int = Field(
         default=100, ge=1, le=10000, description="Maximum batch size"
     )
@@ -121,9 +108,8 @@ class Settings(BaseSettings):
         default=10, ge=1, le=50, description="Max concurrent predictions"
     )
 
-    # PubChem API settings
     pubchem_base_url: str = Field(
-        default="https://pubchem.ncbi.nlm.nih.gov/rest/pug",
+        default="https://pubchem.ncbi.nlm.nih.gov",
         description="PubChem API base URL",
     )
     pubchem_timeout: int = Field(
@@ -137,7 +123,6 @@ class Settings(BaseSettings):
     )
     enable_pubchem: bool = Field(default=True, description="Enable PubChem integration")
 
-    # Response settings
     include_descriptors_default: bool = Field(
         default=False, description="Include descriptors by default"
     )
@@ -151,7 +136,6 @@ class Settings(BaseSettings):
         default=True, description="Include drug-likeness by default"
     )
 
-    # Precision settings
     probability_precision: int = Field(
         default=4, ge=2, le=10, description="Decimal places for probabilities"
     )
@@ -159,7 +143,6 @@ class Settings(BaseSettings):
         default=6, ge=2, le=10, description="Decimal places for descriptors"
     )
 
-    # Logging settings
     log_level: str = Field(default="INFO", description="Logging level")
     log_format: str = Field(
         default="detailed", description="Log format: simple, detailed, or json"
@@ -177,7 +160,6 @@ class Settings(BaseSettings):
         default=100, ge=1, le=1000, description="Max log file size in MB"
     )
 
-    # Performance settings
     enable_performance_monitoring: bool = Field(
         default=True, description="Enable performance monitoring"
     )
@@ -188,13 +170,11 @@ class Settings(BaseSettings):
         default=True, description="Enable metrics collection"
     )
 
-    # Database/Cache settings (for future use)
     redis_url: Optional[str] = Field(default=None, description="Redis URL for caching")
     database_url: Optional[str] = Field(
         default=None, description="Database URL for logging/analytics"
     )
 
-    # Health check settings
     health_check_interval: int = Field(
         default=300, ge=30, le=3600, description="Health check interval (seconds)"
     )
@@ -206,10 +186,9 @@ class Settings(BaseSettings):
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
-        "env_prefix": "MAVHIR_",  # Environment variables prefixed with MAVHIR_
+        "env_prefix": "MAVHIR_",
     }
 
-    # Validators
     @field_validator("environment")
     @classmethod
     def validate_environment(cls, v: str) -> str:
@@ -262,7 +241,6 @@ class Settings(BaseSettings):
 
         if missing_files:
             if values.environment == "development":
-                # Create directories and placeholder files in development
                 models_dir = Path(values.models_dir)
                 models_dir.mkdir(parents=True, exist_ok=True)
 
@@ -270,7 +248,6 @@ class Settings(BaseSettings):
                     file_path = Path(getattr(values, field_name, ""))
                     if file_path and not file_path.exists():
                         file_path.parent.mkdir(parents=True, exist_ok=True)
-                        # Create placeholder file
                         file_path.touch()
             else:
                 raise MavhirError(
@@ -284,7 +261,6 @@ class Settings(BaseSettings):
     @classmethod
     def validate_performance_settings(cls, values: "Settings") -> "Settings":
         """Validate performance-related settings."""
-        # Ensure batch size is reasonable for the environment
         if values.environment == "production":
             if values.max_batch_size > 500:
                 raise ValueError("max_batch_size too large for production (>500)")
@@ -293,7 +269,6 @@ class Settings(BaseSettings):
                     "max_concurrent_predictions too large for production (>20)"
                 )
 
-        # Ensure timeouts are reasonable
         if values.batch_processing_timeout < values.descriptor_timeout:
             raise ValueError("batch_processing_timeout should be >= descriptor_timeout")
 
@@ -381,7 +356,6 @@ def _create_settings_instance() -> Settings:
         raise MavhirError(f"Failed to load Mavhir application settings: {e}") from e
 
 
-# Global settings instance
 settings = _create_settings_instance()
 
 
@@ -391,114 +365,91 @@ def get_settings() -> Settings:
 
 
 def create_sample_env_file(filename: str = ".env.example") -> None:
-    """Create a comprehensive sample .env file."""
-    env_content = """# =============================================================================
-		# MAVHIR CONFIGURATION
+    env_content = """
+# Basic Settings
+MAVHIR_APP_NAME=Mavhir
+MAVHIR_VERSION=2.0.0
+MAVHIR_ENVIRONMENT=development
+MAVHIR_DEBUG=false
 
-		# Basic Application Settings
-		MAVHIR_APP_NAME=Mavhir
-		MAVHIR_VERSION=2.0.0
-		MAVHIR_ENVIRONMENT=development
-		MAVHIR_DEBUG=false
+# Server Settings
+MAVHIR_HOST=0.0.0.0
+MAVHIR_PORT=8000
+MAVHIR_WORKERS=1
 
-		# Server Settings
-		MAVHIR_HOST=0.0.0.0
-		MAVHIR_PORT=8000
-		MAVHIR_WORKERS=1
+# API Configuration
+MAVHIR_API_V1_PREFIX=/api/v1
+MAVHIR_MAX_FILE_SIZE_MB=50
 
-		# API Configuration
-		MAVHIR_API_V1_PREFIX=/api/v1
-		MAVHIR_MAX_FILE_SIZE_MB=50
+# Rate Limiting
+MAVHIR_RATE_LIMIT_PER_MINUTE=100
+MAVHIR_BURST_RATE_LIMIT=20
 
-		# Rate Limiting
-		MAVHIR_RATE_LIMIT_PER_MINUTE=100
-		MAVHIR_BURST_RATE_LIMIT=20
+# CORS Settings
+MAVHIR_CORS_ORIGINS=*
+MAVHIR_CORS_ALLOW_CREDENTIALS=true
+MAVHIR_CORS_ALLOW_METHODS=GET,POST,PUT,DELETE,OPTIONS
+MAVHIR_CORS_ALLOW_HEADERS=*
 
-		# CORS Settings
-		MAVHIR_CORS_ORIGINS=*
-		MAVHIR_CORS_ALLOW_CREDENTIALS=true
-		MAVHIR_CORS_ALLOW_METHODS=GET,POST,PUT,DELETE,OPTIONS
-		MAVHIR_CORS_ALLOW_HEADERS=*
+# Security Settings
+MAVHIR_ENABLE_SECURITY_HEADERS=true
+MAVHIR_ENABLE_TRUSTED_HOSTS=true
+MAVHIR_TRUSTED_HOSTS=localhost,127.0.0.1,*.mavhir.com
 
-		# Security Settings
-		MAVHIR_ENABLE_SECURITY_HEADERS=true
-		MAVHIR_ENABLE_TRUSTED_HOSTS=true
-		MAVHIR_TRUSTED_HOSTS=localhost,127.0.0.1,*.mavhir.com
+# Model Settings
+MAVHIR_MODELS_DIR=app/models
+MAVHIR_AMES_MODEL_PATH=app/models/ames_mutagenicity.pkl
+MAVHIR_AMES_SCALER_PATH=app/models/ames_mutagenicity_scaler.pkl
+MAVHIR_AMES_THRESHOLD=0.5
+MAVHIR_CARCINOGENICITY_MODEL_PATH=app/models/carcinogenicity.pkl
+MAVHIR_CARCINOGENICITY_SCALER_PATH=app/models/carcinogenicity_scaler.pkl
+MAVHIR_CARCINOGENICITY_THRESHOLD=0.5
 
-		# Model Settings
-		MAVHIR_MODELS_DIR=app/models
-		MAVHIR_AMES_MODEL_PATH=app/models/ames_mutagenicity.pkl
-		MAVHIR_AMES_SCALER_PATH=app/models/ames_mutagenicity_scaler.pkl
-		MAVHIR_AMES_THRESHOLD=0.5
-		MAVHIR_CARCINOGENICITY_MODEL_PATH=app/models/carcinogenicity.pkl
-		MAVHIR_CARCINOGENICITY_SCALER_PATH=app/models/carcinogenicity_scaler.pkl
-		MAVHIR_CARCINOGENICITY_THRESHOLD=0.5
+# Chemical Processing Settings
+MAVHIR_ENABLE_MOLECULE_STANDARDIZATION=true
+MAVHIR_STANDARDIZATION_TIMEOUT=30
+MAVHIR_MAX_SMILES_LENGTH=1000
+MAVHIR_MAX_HEAVY_ATOMS=200
 
-		# Chemical Processing Settings
-		MAVHIR_ENABLE_MOLECULE_STANDARDIZATION=true
-		MAVHIR_STANDARDIZATION_TIMEOUT=30
-		MAVHIR_MAX_SMILES_LENGTH=1000
-		MAVHIR_MAX_HEAVY_ATOMS=200
+# Descriptor Calculation Settings
+MAVHIR_DESCRIPTOR_TIMEOUT=60
+MAVHIR_ENABLE_DESCRIPTOR_CACHING=true
+MAVHIR_DESCRIPTOR_CACHE_SIZE=1000
+MAVHIR_DESCRIPTOR_CACHE_TTL=3600
 
-		# Descriptor Calculation Settings
-		MAVHIR_DESCRIPTOR_TIMEOUT=60
-		MAVHIR_ENABLE_DESCRIPTOR_CACHING=true
-		MAVHIR_DESCRIPTOR_CACHE_SIZE=1000
-		MAVHIR_DESCRIPTOR_CACHE_TTL=3600
+# Batch Processing Settings
+MAVHIR_MAX_BATCH_SIZE=100
+MAVHIR_BATCH_PROCESSING_TIMEOUT=300
+MAVHIR_MAX_CONCURRENT_PREDICTIONS=10
 
-		# Batch Processing Settings
-		MAVHIR_MAX_BATCH_SIZE=100
-		MAVHIR_BATCH_PROCESSING_TIMEOUT=300
-		MAVHIR_MAX_CONCURRENT_PREDICTIONS=10
+# PubChem API Settings
+MAVHIR_PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov
+MAVHIR_PUBCHEM_TIMEOUT=10
+MAVHIR_PUBCHEM_RATE_LIMIT_DELAY=0.2
+MAVHIR_PUBCHEM_MAX_RETRIES=3
+MAVHIR_ENABLE_PUBCHEM=true
 
-		# PubChem API Settings
-		MAVHIR_PUBCHEM_BASE_URL=https://pubchem.ncbi.nlm.nih.gov
-		MAVHIR_PUBCHEM_TIMEOUT=10
-		MAVHIR_PUBCHEM_RATE_LIMIT_DELAY=0.2
-		MAVHIR_PUBCHEM_MAX_RETRIES=3
-		MAVHIR_ENABLE_PUBCHEM=true
+# Response Settings
+MAVHIR_INCLUDE_DESCRIPTORS_DEFAULT=false
+MAVHIR_INCLUDE_CONFIDENCE_DEFAULT=true
+MAVHIR_INCLUDE_MOLECULAR_PROPERTIES=true
+MAVHIR_INCLUDE_DRUG_LIKENESS_DEFAULT=true
+MAVHIR_PROBABILITY_PRECISION=4
+MAVHIR_DESCRIPTOR_PRECISION=6
 
-		# Response Settings
-		MAVHIR_INCLUDE_DESCRIPTORS_DEFAULT=false
-		MAVHIR_INCLUDE_CONFIDENCE_DEFAULT=true
-		MAVHIR_INCLUDE_MOLECULAR_PROPERTIES=true
-		MAVHIR_INCLUDE_DRUG_LIKENESS_DEFAULT=true
-		MAVHIR_PROBABILITY_PRECISION=4
-		MAVHIR_DESCRIPTOR_PRECISION=6
+MAVHIR_LOG_LEVEL=INFO
+MAVHIR_LOG_FORMAT=detailed
+MAVHIR_ENABLE_ACCESS_LOGGING=true
+MAVHIR_ENABLE_ERROR_TRACKING=true
+MAVHIR_LOG_FILE_PATH=
+MAVHIR_MAX_LOG_FILE_SIZE_MB=100
 
-		# Logging Settings
-		MAVHIR_LOG_LEVEL=INFO
-		MAVHIR_LOG_FORMAT=detailed
-		MAVHIR_ENABLE_ACCESS_LOGGING=true
-		MAVHIR_ENABLE_ERROR_TRACKING=true
-		MAVHIR_LOG_FILE_PATH=
-		MAVHIR_MAX_LOG_FILE_SIZE_MB=100
+MAVHIR_ENABLE_PERFORMANCE_MONITORING=true
+MAVHIR_SLOW_REQUEST_THRESHOLD=5.0
+MAVHIR_ENABLE_METRICS_COLLECTION=true
 
-		# Performance Settings
-		MAVHIR_ENABLE_PERFORMANCE_MONITORING=true
-		MAVHIR_SLOW_REQUEST_THRESHOLD=5.0
-		MAVHIR_ENABLE_METRICS_COLLECTION=true
-
-		# External Services (Optional)
-		MAVHIR_REDIS_URL=
-		MAVHIR_DATABASE_URL=
-
-		# Health Check Settings
-		MAVHIR_HEALTH_CHECK_INTERVAL=300
-		MAVHIR_ENABLE_STARTUP_HEALTH_CHECK=true
-
-		# PRODUCTION OVERRIDES
-
-		# MAVHIR_ENVIRONMENT=production
-		# MAVHIR_DEBUG=false
-		# MAVHIR_LOG_LEVEL=WARNING
-		# MAVHIR_CORS_ORIGINS=https://yourdomain.com,https://api.yourdomain.com
-		# MAVHIR_ENABLE_TRUSTED_HOSTS=true
-		# MAVHIR_TRUSTED_HOSTS=yourdomain.com,api.yourdomain.com
-		# MAVHIR_MAX_BATCH_SIZE=50
-		# MAVHIR_MAX_CONCURRENT_PREDICTIONS=5
-		# MAVHIR_REDIS_URL=redis://localhost:6379/0
-		# MAVHIR_DATABASE_URL=postgresql://user:pass@localhost/mavhir
+MAVHIR_HEALTH_CHECK_INTERVAL=300
+MAVHIR_ENABLE_STARTUP_HEALTH_CHECK=true
 """
 
     with open(filename, "w") as f:
@@ -513,7 +464,6 @@ def validate_configuration() -> None:
     try:
         test_settings = Settings()
 
-        # Check models directory
         models_dir = Path(test_settings.models_dir)
         if not models_dir.exists():
             if test_settings.is_development():
@@ -522,7 +472,6 @@ def validate_configuration() -> None:
             else:
                 raise MavhirError(f"Models directory does not exist: {models_dir}")
 
-        # Validate model files in non-development environments
         if not test_settings.is_development():
             model_config = test_settings.get_model_config()
             for endpoint, config in model_config.items():
@@ -532,7 +481,6 @@ def validate_configuration() -> None:
                         f"Model file missing for {endpoint}: {model_path}"
                     )
 
-        # Validate external dependencies
         if test_settings.redis_url:
             print(f"Redis configured: {test_settings.redis_url}")
 
@@ -576,70 +524,39 @@ def print_current_config() -> None:
 
 
 def create_requirements_file():
-    """Create comprehensive requirements.txt file."""
-
     requirements_content = """
-		# MAVHIR - COMPREHENSIVE DEPENDENCIES
 
-		# Core FastAPI Framework
-		fastapi
-		uvicorn[standard]
-		pydantic
-		pydantic-settings
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
 
-		# Rate Limiting
-		slowapi
+slowapi
+rdkit
+mordred
+scikit-learn
+numpy
+pandas
+joblib
 
-		# Chemistry and Machine Learning
-		rdkit
-		mordred
-		scikit-learn
-		numpy
-		pandas
-		joblib
+httpx
+requests
 
-		# HTTP Client for PubChem
-		httpx
-		requests
+python-dotenv
 
-		# Data Validation and Serialization
-		pydantic[email]
+structlog
 
-		# Environment and Configuration
-		python-dotenv
+pytest
+pytest-asyncio
+pytest-cov
+black
+flake8
+mypy
+pre-commit
 
-		# Logging and Monitoring
-		structlog
-
-		# Optional: Database Support
-		# sqlalchemy
-		# alembic
-		# psycopg2-binary
-
-		# Optional: Caching
-		# redis
-		# hiredis
-
-		# Optional: Advanced Monitoring
-		# prometheus-client
-		# opentelemetry-api
-
-		# Development Dependencies (install with: pip install -e ".[dev]")
-		# pytest
-		# pytest-asyncio
-		# pytest-cov
-		# black
-		# flake8
-		# mypy
-		# pre-commit
-
-		# Documentation
-		# mkdocs
-		# mkdocs-material
-
-		# Security
-		# bandit
-	"""
+mkdocs
+mkdocs-material
+"""
 
     with open("requirements.txt", "w") as f:
         f.write(requirements_content)
@@ -648,113 +565,104 @@ def create_requirements_file():
 
 
 def create_docker_files():
-    """Create production-ready Docker files."""
-
-    # Dockerfile
     dockerfile_content = """
-		# MAVHIR - PRODUCTION DOCKERFILE
+FROM python:3.11-slim
 
-		FROM python:3.11-slim
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV MAVHIR_ENVIRONMENT=production
 
-		# Set environment variables
-		ENV PYTHONDONTWRITEBYTECODE=1
-		ENV PYTHONUNBUFFERED=1
-		ENV MAVHIR_ENVIRONMENT=production
+# Install system dependencies
+RUN apt-get update \\
+    && apt-get install -y --no-install-recommends \\
+        build-essential \\
+        libpq-dev \\
+        curl \\
+    && rm -rf /var/lib/apt/lists/*
 
-		# Install system dependencies
-		RUN apt-get update \\
-			&& apt-get install -y --no-install-recommends \\
-				build-essential \\
-				libpq-dev \\
-				curl \\
-			&& rm -rf /var/lib/apt/lists/*
+# Create app user
+RUN useradd --create-home --shell /bin/bash mavhir
 
-		# Create app user
-		RUN useradd --create-home --shell /bin/bash mavhir
+# Set work directory
+WORKDIR /app
 
-		# Set work directory
-		WORKDIR /app
+# Copy requirements and install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-		# Copy requirements and install Python dependencies
-		COPY requirements.txt .
-		RUN pip install --no-cache-dir -r requirements.txt
+# Copy application code
+COPY . .
 
-		# Copy application code
-		COPY . .
+# Create necessary directories
+RUN mkdir -p /app/logs /app/data /app/models
 
-		# Create necessary directories
-		RUN mkdir -p /app/logs /app/data /app/models
+# Change ownership to app user
+RUN chown -R mavhir:mavhir /app
 
-		# Change ownership to app user
-		RUN chown -R mavhir:mavhir /app
+# Switch to app user
+USER mavhir
 
-		# Switch to app user
-		USER mavhir
+# Expose port
+EXPOSE 8000
 
-		# Expose port
-		EXPOSE 8000
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \\
+    CMD curl -f http://localhost:8000/health || exit 1
 
-		# Health check
-		HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \\
-			CMD curl -f http://localhost:8000/health || exit 1
-
-		# Run application
-		CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run application
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 """
 
-    # Docker Compose
     docker_compose_content = """
-		# MAVHIR - DOCKER COMPOSE CONFIGURATION
+version: '3.8'
 
-		version: '3.8'
+services:
+  mavhir:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MAVHIR_ENVIRONMENT=production
+      - MAVHIR_DEBUG=false
+      - MAVHIR_LOG_LEVEL=INFO
+      - MAVHIR_REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
+    depends_on:
+      - redis
+    restart: unless-stopped
 
-		services:
-		mavhir:
-			build: .
-			ports:
-			- "8000:8000"
-			environment:
-			- MAVHIR_ENVIRONMENT=production
-			- MAVHIR_DEBUG=false
-			- MAVHIR_LOG_LEVEL=INFO
-			- MAVHIR_REDIS_URL=redis://redis:6379/0
-			volumes:
-			- ./models:/app/models:ro
-			- ./logs:/app/logs
-			depends_on:
-			- redis
-			restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
 
-		redis:
-			image: redis:7-alpine
-			ports:
-			- "6379:6379"
-			volumes:
-			- redis_data:/data
-			restart: unless-stopped
+  # Optional: Database
+  # postgres:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: mavhir
+  #     POSTGRES_USER: mavhir
+  #     POSTGRES_PASSWORD: your_password_here
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   restart: unless-stopped
 
-		# Optional: Database
-		# postgres:
-		#   image: postgres:15-alpine
-		#   environment:
-		#     POSTGRES_DB: mavhir
-		#     POSTGRES_USER: mavhir
-		#     POSTGRES_PASSWORD: your_password_here
-		#   volumes:
-		#     - postgres_data:/var/lib/postgresql/data
-		#   ports:
-		#     - "5432:5432"
-		#   restart: unless-stopped
+volumes:
+  redis_data:
+  # postgres_data:
 
-		volumes:
-		redis_data:
-		# postgres_data:
-
-		networks:
-		default:
-			name: mavhir_network
-	"""
-
+networks:
+  default:
+    name: mavhir_network
+"""
     with open("Dockerfile", "w") as f:
         f.write(dockerfile_content)
 
@@ -784,8 +692,3 @@ if __name__ == "__main__":
     print_current_config()
     print()
     print("Configuration setup complete!")
-    print("Next steps:")
-    print("  1. Copy .env.example to .env and customize")
-    print("  2. Install dependencies: pip install -r requirements.txt")
-    print("  3. Train models: python app/models/train_models.py")
-    print("  4. Start server: uvicorn app.main:app --reload")
