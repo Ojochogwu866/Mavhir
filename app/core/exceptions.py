@@ -116,7 +116,6 @@ class MavhirModelPredictionError(MavhirModelError):
             context={"model_name": model_name, "smiles": smiles, "details": details},
         )
 
-
 class MavhirPubChemError(MavhirError):
     """Base class for PubChem API Errors"""
 

@@ -128,14 +128,11 @@ class EnhancedToxicityModel:
     def _load_model_components(self):
         """Load all model components with comprehensive validation."""
 
-        # Load main model
         self.model = self._load_model()
         self.expected_features = self._determine_expected_features()
 
-        # Load and validate scaler
         self.scaler = self._load_and_validate_scaler()
 
-        # Validate model compatibility
         self._validate_model_components()
 
         logger.info(
@@ -160,7 +157,6 @@ class EnhancedToxicityModel:
                     self.model_path, f"Unsupported file format: {model_file.suffix}"
                 )
 
-            # Validate model has required methods
             required_methods = ["predict"]
             for method in required_methods:
                 if not hasattr(model, method):

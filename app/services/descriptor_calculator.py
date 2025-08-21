@@ -303,9 +303,6 @@ class EnhancedDescriptorCalculator:
         )
 
     def _setup_exact_model_features(self):
-        """
-        Setup EXACT model features that match training data.
-        """
         metadata_path = Path(self.settings.models_dir) / "model_metadata.json"
 
         if metadata_path.exists():
@@ -336,7 +333,7 @@ class EnhancedDescriptorCalculator:
             except Exception as e:
                 logger.error(f"Error loading metadata: {e}")
 
-        logger.info("🔧 Creating deterministic feature mapping...")
+        logger.info("Creating deterministic feature mapping...")
         self._create_deterministic_features()
 
         self._save_feature_mapping()
@@ -375,7 +372,7 @@ class EnhancedDescriptorCalculator:
             self.model_features[endpoint] = features
 
         for endpoint, features in self.model_features.items():
-            logger.info(f"🎯 {endpoint}: exactly {len(features)} features")
+            logger.info(f"{endpoint}: exactly {len(features)} features")
 
     def _save_feature_mapping(self):
         """Save the feature mapping for future use."""
@@ -400,7 +397,7 @@ class EnhancedDescriptorCalculator:
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
-            logger.info(f"💾 Saved feature mapping to {metadata_path}")
+            logger.info(f"Saved feature mapping to {metadata_path}")
 
         except Exception as e:
             logger.warning(f"Failed to save feature mapping: {e}")
@@ -655,7 +652,7 @@ def test_exact_features():
                 print(f"   {model_endpoint}: ERROR - {e}")
                 return False
 
-        print("\n🎉 ALL TESTS PASSED! Enhanced descriptor calculator is ready!")
+        print("\nALL TESTS PASSED! Enhanced descriptor calculator is ready!")
         return True
 
     except Exception as e:
