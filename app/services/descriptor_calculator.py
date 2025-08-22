@@ -42,10 +42,6 @@ class DescriptorStatistics:
 
 
 class MordredCalculator:
-    """
-    Mordred calculator with robust error handling and feature management.
-    """
-
     def __init__(self):
         """Initialize with comprehensive descriptor sets and error handling."""
         self.calculator = Calculator()
@@ -54,7 +50,6 @@ class MordredCalculator:
 
         self._calculation_lock = threading.Lock()
 
-        # Statistics tracking
         self._stats = {
             "total_calculations": 0,
             "successful": 0,
@@ -94,7 +89,6 @@ class MordredCalculator:
                 f"Registered {registered_core}/{len(core_groups)} core descriptor groups"
             )
 
-            # Extended descriptor groups
             extended_groups = [
                 "TopologicalIndex",
                 "Polarizability",
@@ -136,9 +130,6 @@ class MordredCalculator:
     def calculate_descriptors_safe(
         self, mol: Chem.Mol, smiles: str
     ) -> DescriptorCalculationResult:
-        """
-        Calculate descriptors with comprehensive error handling and timeout protection.
-        """
         start_time = time.time()
         errors = []
         warnings = []
@@ -242,10 +233,6 @@ class MordredCalculator:
 
 
 class DescriptorCalculator:
-    """
-    Production-ready descriptor calculator with exact feature matching and comprehensive monitoring.
-    """
-
     def __init__(self):
         """Initialize with exact model feature mappings."""
         self.settings = get_settings()
@@ -305,7 +292,6 @@ class DescriptorCalculator:
         """Setup exact model features from metadata."""
         metadata_path = Path(self.settings.models_dir) / "model_metadata.json"
 
-        # Load from metadata if available
         if metadata_path.exists():
             try:
                 with open(metadata_path, "r") as f:
@@ -320,7 +306,6 @@ class DescriptorCalculator:
                             f"Loaded {len(feature_names)} exact features for {endpoint_name}"
                         )
 
-                # Verify we have both models
                 if "ames_mutagenicity" in self.model_features and "carcinogenicity" in self.model_features:
                     logger.info("Successfully loaded exact features from metadata")
                     return
@@ -330,7 +315,6 @@ class DescriptorCalculator:
             except Exception as e:
                 logger.error(f"Error loading metadata: {e}")
 
-        # Fallback: create feature subsets that match the expected counts
         logger.warning("Using feature subset fallback for model compatibility")
         self._create_feature_subsets()
 
@@ -338,7 +322,6 @@ class DescriptorCalculator:
         """Create feature subsets that match the expected model sizes."""
         available_descriptors = sorted(self.all_descriptor_names)
         
-        # Expected feature counts from the error logs
         target_counts = {
             "ames_mutagenicity": 334,
             "carcinogenicity": 336,
@@ -346,14 +329,11 @@ class DescriptorCalculator:
 
         self.model_features = {}
         
-        # Create deterministic subsets
         for endpoint, target_count in target_counts.items():
             if len(available_descriptors) >= target_count:
-                # Use first N descriptors for consistency
                 selected_features = available_descriptors[:target_count]
                 logger.info(f"Selected first {target_count} descriptors for {endpoint}")
             else:
-                # Pad with dummy features if needed
                 selected_features = available_descriptors.copy()
                 while len(selected_features) < target_count:
                     dummy_name = f"dummy_{endpoint}_feature_{len(selected_features):04d}"
@@ -373,7 +353,6 @@ class DescriptorCalculator:
             metadata_path = Path(self.settings.models_dir) / "model_metadata.json"
             metadata_path.parent.mkdir(parents=True, exist_ok=True)
 
-            # Load existing metadata if it exists
             metadata = {}
             if metadata_path.exists():
                 try:
@@ -382,14 +361,11 @@ class DescriptorCalculator:
                 except:
                     pass
 
-            # Update with our feature mappings
             for endpoint, features in self.model_features.items():
                 if endpoint not in metadata:
                     metadata[endpoint] = {}
                 metadata[endpoint]["feature_names"] = features
                 metadata[endpoint]["n_features"] = len(features)
-
-            # Save updated metadata
             with open(metadata_path, "w") as f:
                 json.dump(metadata, f, indent=2)
 
@@ -473,10 +449,8 @@ class DescriptorCalculator:
         if mol is None:
             raise MavhirDescriptorCalculationError(f"Invalid SMILES: {smiles}")
 
-        # Calculate all descriptors first
         full_descriptors = self.calculate_full_descriptors(mol, smiles)
 
-        # Get the exact features needed for this model
         required_features = self.model_features[model_endpoint]
         model_descriptors = {}
 
@@ -484,16 +458,13 @@ class DescriptorCalculator:
             if feature_name in full_descriptors:
                 model_descriptors[feature_name] = full_descriptors[feature_name]
             elif feature_name.startswith("dummy_"):
-                # Dummy feature for padding
                 model_descriptors[feature_name] = 0.0
             else:
-                # Missing descriptor, use 0.0
                 model_descriptors[feature_name] = 0.0
                 logger.debug(
                     f"Missing descriptor {feature_name} for {model_endpoint}, using 0.0"
                 )
 
-        # Critical validation
         actual_count = len(model_descriptors)
         expected_count = len(required_features)
 

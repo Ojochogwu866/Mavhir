@@ -147,15 +147,8 @@ class MoleculeStandardizer:
 
 
 class PropertyCalculator:
-    """
-    Molecular property calculator with comprehensive metrics.
-    """
-
     @staticmethod
     def calculate_properties(mol: Chem.Mol) -> MolecularProperties:
-        """
-        Calculate comprehensive molecular properties.
-        """
         try:
             molecular_weight = float(Descriptors.MolWt(mol))
             logp = float(Crippen.MolLogP(mol))
@@ -204,9 +197,6 @@ class PropertyCalculator:
     def assess_drug_likeness(
         self: str, properties: MolecularProperties
     ) -> Dict[str, Any]:
-        """
-        Drug-likeness assessment using multiple rule sets.
-        """
         lipinski_violations = []
         if properties.molecular_weight > 500:
             lipinski_violations.append(f"MW > 500 ({properties.molecular_weight:.1f})")
@@ -300,9 +290,6 @@ class ChemicalProcessor:
         logger.info(f"ChemicalProcessor initialized")
 
     def validate_smiles_comprehensive(self, smiles: str) -> ValidationResult:
-        """
-        Comprehensive SMILES validation with detailed feedback.
-        """
         start_time = time.time()
         errors = []
         warnings = []
