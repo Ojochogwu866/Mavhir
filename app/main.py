@@ -209,23 +209,18 @@ def _setup_middleware(app: FastAPI) -> None:
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
 
-    # CORS
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.get_cors_origins(),
-        allow_credentials=settings.cors_allow_credentials,
-        allow_methods=settings.get_cors_methods(),
-        allow_headers=(
-            ["*"]
-            if settings.cors_allow_headers == "*"
-            else settings.cors_allow_headers.split(",")
-        ),
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
-    if not settings.is_development():
+    if settings.is_development():
         app.add_middleware(
             TrustedHostMiddleware,
-            allowed_hosts=["localhost", "127.0.0.1", "*."],
+            allowed_hosts=["localhost", "127.0.0.1", "*.localhost"],
         )
 
     @app.middleware("http")
@@ -278,6 +273,22 @@ def _setup_middleware(app: FastAPI) -> None:
             )
             raise
 
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        """Add security headers."""
+        response = await call_next(request)
+
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+
+        if settings.is_production():
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+
+        return response
+    
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
         """Add security headers."""
