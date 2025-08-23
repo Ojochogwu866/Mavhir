@@ -985,7 +985,6 @@ class ModelTrainer:
             f"Augmenting training data from {len(df)} to ~{target_size} compounds"
         )
 
-        # Simple augmentation by adding some common compounds
         additional_compounds = [
             # More non-toxic compounds
             {"name": "Water", "smiles": "O", "label": 0, "confidence": "high"},
@@ -1228,22 +1227,18 @@ def train_and_save_models():
         try:
             logger.info(f"Training {config.endpoint.value} model...")
             
-            # Train the model
             result = trainer.train_model(config)
             
-            # CRITICAL: Verify model is trained
             if not hasattr(result.model, 'classes_'):
                 logger.error(f" Model not properly trained: {config.endpoint.value}")
                 continue
             
-            # Save model
             endpoint = config.endpoint.value
             model_path = models_dir / f"{endpoint}.pkl"
             
             with open(model_path, "wb") as f:
                 pickle.dump(result.model, f, protocol=4)
             
-            # Verify model file
             model_size = model_path.stat().st_size
             if model_size == 0:
                 logger.error(f" Model file is empty: {model_path}")
@@ -1251,7 +1246,6 @@ def train_and_save_models():
             
             logger.info(f" Saved model: {model_path} ({model_size} bytes)")
             
-            # Save scaler
             scaler_path = models_dir / f"{endpoint}_scaler.pkl"
             with open(scaler_path, "wb") as f:
                 pickle.dump(result.scaler, f, protocol=4)
@@ -1259,7 +1253,6 @@ def train_and_save_models():
             scaler_size = scaler_path.stat().st_size
             logger.info(f"Saved scaler: {scaler_path} ({scaler_size} bytes)")
             
-            # Save metadata
             metadata[endpoint] = {
                 "model_type": config.model_type.value,
                 "n_features": len(result.descriptor_names),

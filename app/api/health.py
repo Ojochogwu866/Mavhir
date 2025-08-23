@@ -75,7 +75,6 @@ async def models_health_check():
     """
 
     try:
-        # Try to create predictor (loads all models)
         predictor = create_predictor()
 
         model_info = predictor.get_model_info()

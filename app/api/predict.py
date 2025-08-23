@@ -57,9 +57,8 @@ async def predict_smiles(
         predictor = create_predictor()
 
         try:
-            # Let the predictor handle descriptor calculation for each model
             predictions = predictor.predict(
-                descriptors=None,  # Let predictor calculate descriptors for each model
+                descriptors=None,
                 smiles=processed_mol.canonical_smiles,
                 endpoints=request.endpoints,
             )
@@ -80,7 +79,6 @@ async def predict_smiles(
                 confidence=pred_result.confidence,
             )
 
-        # Calculate descriptors for response if requested
         descriptors_for_response = None
         if request.include_descriptors:
             try:
@@ -91,7 +89,6 @@ async def predict_smiles(
             except Exception as e:
                 logger.warning(f"Failed to calculate descriptors for response: {e}")
 
-        # Convert molecular properties to API format
         api_molecular_properties = None
         if request.include_properties and processed_mol.properties:
             try:
@@ -342,9 +339,8 @@ async def _process_single_compound(
                 success=False,
             )
 
-        # Let the predictor handle descriptor calculation for each model
         predictions = predictor.predict(
-            descriptors=None,  # Let predictor calculate descriptors for each model
+            descriptors=None, 
             smiles=processed_mol.canonical_smiles,
             endpoints=endpoints,
         )
@@ -358,7 +354,6 @@ async def _process_single_compound(
                 confidence=pred_result.confidence,
             )
 
-        # Calculate descriptors for response if requested
         descriptors_for_response = None
         if include_descriptors:
             try:
@@ -368,7 +363,6 @@ async def _process_single_compound(
             except Exception as e:
                 logger.warning(f"Failed to calculate descriptors for response: {e}")
 
-        # Convert molecular properties to API format
         api_molecular_properties = None
         if include_properties and processed_mol.properties:
             try:

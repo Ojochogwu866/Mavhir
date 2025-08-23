@@ -16,10 +16,6 @@ router = APIRouter(prefix="/chemical", tags=["Chemical Lookup"])
 
 @router.get("/lookup/{query}", response_model=ChemicalLookupResponse)
 async def lookup_compound(query: str, settings: Settings = Depends(get_settings)):
-    """
-    Look up chemical compound in PubChem database.
-    """
-
     start_time = time.time()
 
     try:

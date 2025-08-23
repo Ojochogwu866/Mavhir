@@ -269,9 +269,6 @@ class ToxicityModel:
     def predict(
         self, descriptors: Dict[str, float], request_id: Optional[str] = None
     ) -> PredictionResult:
-        """
-        Make prediction with comprehensive error handling and monitoring.
-        """
         start_time = time.time()
 
         try:
@@ -560,10 +557,7 @@ class ToxicityPredictor:
         Synchronous predict method that handles event loop context properly.
         """
         try:
-            # Check if we're already in an async context
             loop = asyncio.get_running_loop()
-            # If we're in an async context, we need to run this in a thread
-            # to avoid the "asyncio.run() cannot be called from a running event loop" error
             import concurrent.futures
             
             with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -574,7 +568,6 @@ class ToxicityPredictor:
                 return future.result()
                 
         except RuntimeError:
-            # No running event loop, safe to use asyncio.run()
             return asyncio.run(
                 self.predict_async(descriptors, smiles, endpoints, request_id)
             )

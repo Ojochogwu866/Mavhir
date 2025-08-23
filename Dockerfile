@@ -1,4 +1,3 @@
-
 FROM python:3.11-slim
 
 # Set environment variables
@@ -29,6 +28,9 @@ COPY . .
 
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data /app/models
+
+# Train models
+RUN python -m app.services.train_models
 
 # Change ownership to app user
 RUN chown -R mavhir:mavhir /app
