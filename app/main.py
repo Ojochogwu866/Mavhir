@@ -149,7 +149,7 @@ def create_application() -> FastAPI:
         title="Mavhir",
         version=settings.version,
         description="""
-        🧬 **Mavhir** - Toxicity Prediction API
+        Mavhir - Toxicity Prediction API
         
         Predicts Ames mutagenicity and carcinogenicity using machine learning models
         trained on molecular descriptors.
@@ -161,10 +161,10 @@ def create_application() -> FastAPI:
         - Comprehensive molecular property calculation
         - Drug-likeness assessment
         
-        ## Endpoints
-        - **Health**: System diagnostics and model status
-        - **Chemical**: SMILES validation and PubChem lookup
-        - **Predict**: Toxicity predictions for compounds
+        Endpoints
+        - Health: System diagnostics and model status
+        - Chemical: SMILES validation and PubChem lookup
+        - Predict: Toxicity predictions for compounds
         """,
         contact={
             "name": "Mavhir Team",
@@ -191,8 +191,8 @@ def create_application() -> FastAPI:
         ],
         lifespan=lifespan,
         debug=settings.debug,
-        docs_url="/docs" if settings.environment != "production" else None,
-        redoc_url="/redoc" if settings.environment != "production" else None,
+        docs_url="/docs",
+        redoc_url="/redoc",
     )
 
     _setup_middleware(app)
