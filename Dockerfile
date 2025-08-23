@@ -29,7 +29,7 @@ COPY . .
 # Create necessary directories
 RUN mkdir -p /app/logs /app/data /app/models
 
-# Train models (this generates the required .pkl files)
+# Train models
 RUN python -m app.services.train_models
 
 # Change ownership to app user
