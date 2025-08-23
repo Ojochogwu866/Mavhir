@@ -30,7 +30,7 @@ COPY . .
 RUN mkdir -p /app/logs /app/data /app/models
 
 # Train models
-RUN python -m app.services.train_models
+RUN python -m app.models.train_models
 
 # Change ownership to app user
 RUN chown -R mavhir:mavhir /app
