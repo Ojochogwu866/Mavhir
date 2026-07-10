@@ -1,0 +1,10 @@
+{
+  "description": "Deliberately held-out organochlorine pesticide probe set. These CAS numbers are excluded from train/val for both Ames and carcinogenicity models (RF/GBM baseline and GNN) so that generalization to this compound class -- the subject of the original chemRxiv paper's under-prediction finding -- can be tested honestly, rather than relying on a random split to leave them out (which it did not: 6 of the original 7 spot-checked compounds turned out to be in-training data).",
+  "source": "Curated list of classic organochlorine pesticides, cross-referenced against data/raw/cpdb/carcinogenicity_final.csv by name match, with one false-positive regex match (Riddelliine, a pyrrolizidine alkaloid, not an organochlorine) manually excluded.",
+  "cas_numbers": [
+    "309-00-2", "57-74-9", "510-15-6", "53-19-0", "72-54-8", "72-55-9",
+    "50-29-3", "115-32-2", "60-57-1", "13366-73-9", "115-29-7", "72-20-8",
+    "72-56-0", "76-44-8", "118-74-1", "608-73-1", "143-50-0", "72-43-5",
+    "2385-85-5", "39801-14-4", "87-86-5", "8001-35-2"
+  ]
+}

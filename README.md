@@ -202,17 +202,19 @@ docker run -p 8000:8000 mavhir
 
 ### Ames Mutagenicity Model
 - **Algorithm**: Random Forest Classifier
-- **Features**: ~200 Mordred molecular descriptors
-- **Training Data**: 6,500+ compounds from literature
-- **Performance**: 88% accuracy, 0.91 AUC-ROC
+- **Features**: 552 Mordred molecular descriptors (variance/correlation-filtered on the training split only)
+- **Training Data**: 6,506 compounds from the Hansen et al. (2009) benchmark (http://doc.ml.tu-berlin.de/toxbenchmark/)
+- **Performance (held-out test — the authors' own predefined fold, not an arbitrary split)**: 81.3% accuracy, 0.884 AUC-ROC, 82.7% precision, 79.7% recall
 - **Endpoint**: Bacterial reverse mutation (Salmonella typhimurium)
 
 ### Carcinogenicity Model
 - **Algorithm**: Gradient Boosting Classifier
-- **Features**: ~180 Mordred molecular descriptors  
-- **Training Data**: 1,200+ compounds from NTP/CPDB
-- **Performance**: 76% accuracy, 0.82 AUC-ROC
+- **Features**: 550 Mordred molecular descriptors (variance/correlation-filtered on the training split only)
+- **Training Data**: 1,447 compounds from CPDB (Carcinogenic Potency Database), labeled per the database's own legend across all species sheets — see `data/raw/README.md` for full methodology
+- **Performance (held-out test, fresh stratified split)**: 65.1% accuracy, 0.704 AUC-ROC, 68.2% precision, 63.5% recall
 - **Endpoint**: 2-year rodent bioassays
+
+These numbers replace an earlier version of this README that cited different figures (88%/0.91 AUC for Ames, 76%/0.82 AUC for carcinogenicity, on claimed but never-actually-wired-in datasets). The models were retrained from scratch on the real, documented datasets above once that discrepancy was found — see `docs/gnn_extension_design.md` Section 0 for the full account.
 
 ## 🔧 Configuration
 
