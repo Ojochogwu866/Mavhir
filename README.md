@@ -238,6 +238,8 @@ A GNN (PyTorch Geometric, `app/gnn/`) was trained on the identical splits above 
 
 Both the Ames RF and Ames GNN predict **non-mutagenic for every one of the 14 held-out organochlorines**, missing both true positives — the 85.7% accuracy is a base-rate artifact, not genuine discrimination. On carcinogenicity, the GNN's higher raw accuracy is similarly misleading (specificity of just 16.7% on a majority-positive set); by AUC-ROC and MCC the GBM baseline is actually more discriminative. **Neither architecture reliably generalizes to this compound class** — moving to a GNN does not clearly close the organochlorine under-prediction gap the original research identified. Given the small probe set sizes (particularly n=14 with only 2 positives for Ames), the specific AUC rankings should be read as suggestive, not conclusive; the robust part of the finding is the identical degenerate binary behavior on Ames.
 
+**From-scratch validation**: a second GNN (`app/gnn/model_scratch.py`) was built without PyTorch Geometric's `MessagePassing`/conv layers — message passing and pooling implemented directly with `index_add_` scatter operations — to confirm the library model's results reflect real understanding of the mechanism. Standard-test performance is close (Ames: 79.2% acc / 0.869 AUC vs library's 80.1% / 0.874; CPDB: 65.0% / 0.734 vs 66.6% / 0.739), and on the Ames probe set it reproduces the **identical** degenerate behavior (non-mutagenic for all 14, MCC 0) — a third independent model landing on the same failure mode is stronger evidence this is a real property of the problem, not an artifact of one implementation.
+
 ## 🔧 Configuration
 
 Key environment variables:

@@ -54,6 +54,19 @@ Both Ames models predict non-mutagenic for **all 14** held-out organochlorines, 
 
 **Conclusion: neither the descriptor-based baselines nor the GNN reliably generalize to held-out organochlorine pesticides.** Moving to a more expressive architecture did not close the under-prediction gap this project set out to test. Given the small probe-set sizes — particularly n=14 with only 2 positive examples for Ames — the specific AUC comparisons should be read as suggestive rather than conclusive; the robust, sample-size-independent part of the finding is that both architectures made the identical degenerate binary call on Ames.
 
+### From-scratch GNN validation
+
+A second GNN implementation (`app/gnn/model_scratch.py`) was built without PyTorch Geometric's `MessagePassing` base class or any conv layers — message construction, scatter-sum aggregation (`index_add_`), and graph pooling all implemented directly with basic PyTorch tensor ops, as a check that the library version's results reflect real understanding of the mechanism rather than "it's a library that worked." Trained identically (same splits, same probe set, 5 seeds):
+
+| Metric | Library GNN | Scratch GNN |
+|---|---|---|
+| Ames standard test accuracy | 80.1% | 79.2% |
+| Ames standard test AUC-ROC | 0.874 | 0.869 |
+| CPDB standard test accuracy | 66.6% | 65.0% |
+| CPDB standard test AUC-ROC | 0.739 | 0.734 |
+
+Close agreement on the standard test sets confirms the from-scratch implementation is not broken or degenerate. On the Ames organochlorine probe set, the two implementations produce the **identical** binary decision pattern (non-mutagenic for all 14 compounds, precision/recall/MCC all 0) — a third independently-built model reproducing the same failure mode as the RF baseline is stronger evidence that this is a real property of the data/problem than any single model's result would be.
+
 ## Model Limitations
 
 ### Applicability Domain

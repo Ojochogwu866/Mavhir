@@ -23,6 +23,9 @@ from torch_geometric.loader import DataLoader
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.gnn.featurize import smiles_to_graph, ATOM_FEATURE_DIM, BOND_FEATURE_DIM
 from app.gnn.model import MoleculeGNN
+from app.gnn.model_scratch import ScratchMoleculeGNN
+
+MODEL_CLASSES = {"library": MoleculeGNN, "scratch": ScratchMoleculeGNN}
 
 
 def build_graphs(smiles_list, labels):
@@ -63,11 +66,11 @@ def evaluate(model, loader, device):
     }
 
 
-def train_one_seed(train_graphs, val_graphs, test_graphs, seed, epochs, device, pos_weight):
+def train_one_seed(train_graphs, val_graphs, test_graphs, seed, epochs, device, pos_weight, model_class):
     torch.manual_seed(seed)
     np.random.seed(seed)
 
-    model = MoleculeGNN(ATOM_FEATURE_DIM, BOND_FEATURE_DIM).to(device)
+    model = model_class(ATOM_FEATURE_DIM, BOND_FEATURE_DIM).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-5)
     criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([pos_weight], device=device))
 
@@ -101,7 +104,8 @@ def train_one_seed(train_graphs, val_graphs, test_graphs, seed, epochs, device, 
     return test_metrics, best_val_auc, best_state
 
 
-def run_task(name, smiles_list, labels, test_mask, epochs, seeds, probe_mask=None):
+def run_task(name, smiles_list, labels, test_mask, epochs, seeds, probe_mask=None, model_variant="library"):
+    model_class = MODEL_CLASSES[model_variant]
     device = torch.device("cpu")
     print(f"\n=== {name}: building graphs ===")
     graphs, dropped = build_graphs(smiles_list, labels)
@@ -142,7 +146,7 @@ def run_task(name, smiles_list, labels, test_mask, epochs, seeds, probe_mask=Non
     best_overall_auc, best_overall_state = -1.0, None
     for seed in seeds:
         print(f"  --- seed {seed} ---")
-        test_metrics, val_auc, state = train_one_seed(train_graphs, val_graphs, test_graphs, seed, epochs, device, pos_weight)
+        test_metrics, val_auc, state = train_one_seed(train_graphs, val_graphs, test_graphs, seed, epochs, device, pos_weight, model_class)
         print(f"  seed {seed} test metrics: {test_metrics}")
         all_metrics.append(test_metrics)
         if val_auc > best_overall_auc:
@@ -153,7 +157,7 @@ def run_task(name, smiles_list, labels, test_mask, epochs, seeds, probe_mask=Non
 
     probe_result = None
     if probe_graphs:
-        model = MoleculeGNN(ATOM_FEATURE_DIM, BOND_FEATURE_DIM).to(device)
+        model = model_class(ATOM_FEATURE_DIM, BOND_FEATURE_DIM).to(device)
         model.load_state_dict(best_overall_state)
         probe_loader = DataLoader(probe_graphs, batch_size=64, shuffle=False)
         probe_result = evaluate(model, probe_loader, device)
@@ -161,8 +165,9 @@ def run_task(name, smiles_list, labels, test_mask, epochs, seeds, probe_mask=Non
 
     # Save the best-val-AUC seed's weights for downstream inference (e.g. the
     # organochlorine concordance check) -- a representative model, not an ensemble.
-    torch.save(best_overall_state, f"app/models/gnn_{name.lower()}.pt")
-    print(f"Saved app/models/gnn_{name.lower()}.pt (best val AUC across seeds: {best_overall_auc:.4f})")
+    ckpt_path = f"app/models/gnn_{name.lower()}_{model_variant}.pt"
+    torch.save(best_overall_state, ckpt_path)
+    print(f"Saved {ckpt_path} (best val AUC across seeds: {best_overall_auc:.4f})")
 
     return summary, all_metrics, probe_result
 
@@ -172,6 +177,7 @@ if __name__ == "__main__":
     parser.add_argument("--task", choices=["ames", "cpdb"], required=True)
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    parser.add_argument("--model", choices=["library", "scratch"], default="library")
     args = parser.parse_args()
 
     with open("data/processed/organochlorine_probe_set.json") as f:
@@ -184,7 +190,7 @@ if __name__ == "__main__":
         test_mask = np.array([i in test_idx for i in range(len(ames))])
         probe_mask = np.isin(ames["CAS_NO"].astype(str).str.strip().values, list(probe_cas))
         summary, all_metrics, probe_result = run_task(
-            "Ames", ames["Canonical_Smiles"].tolist(), ames["Activity"].tolist(), test_mask, args.epochs, args.seeds, probe_mask
+            "Ames", ames["Canonical_Smiles"].tolist(), ames["Activity"].tolist(), test_mask, args.epochs, args.seeds, probe_mask, args.model
         )
     else:
         cpdb = pd.read_csv("data/raw/cpdb/carcinogenicity_final.csv").dropna(subset=["smiles", "carcinogenicity_label"]).reset_index(drop=True)
@@ -195,14 +201,14 @@ if __name__ == "__main__":
         test_mask[test_idx] = True
         probe_mask = np.isin(cpdb["cas"].astype(str).str.strip().values, list(probe_cas))
         summary, all_metrics, probe_result = run_task(
-            "CPDB", cpdb["smiles"].tolist(), cpdb["carcinogenicity_label"].tolist(), test_mask, args.epochs, args.seeds, probe_mask
+            "CPDB", cpdb["smiles"].tolist(), cpdb["carcinogenicity_label"].tolist(), test_mask, args.epochs, args.seeds, probe_mask, args.model
         )
 
-    print(f"\n=== {args.task} summary across {len(args.seeds)} seeds ===")
+    print(f"\n=== {args.task} ({args.model}) summary across {len(args.seeds)} seeds ===")
     print(json.dumps(summary, indent=2))
     print(f"Organochlorine probe set result: {json.dumps(probe_result, indent=2) if probe_result else 'no probe compounds in this dataset'}")
 
-    out_path = Path(f"data/processed/gnn_{args.task}_results.json")
+    out_path = Path(f"data/processed/gnn_{args.task}_{args.model}_results.json")
     with open(out_path, "w") as f:
-        json.dump({"summary": summary, "per_seed": all_metrics, "probe_result": probe_result, "seeds": args.seeds, "epochs": args.epochs}, f, indent=2)
+        json.dump({"summary": summary, "per_seed": all_metrics, "probe_result": probe_result, "seeds": args.seeds, "epochs": args.epochs, "model_variant": args.model}, f, indent=2)
     print(f"Saved {out_path}")
