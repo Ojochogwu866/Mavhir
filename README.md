@@ -202,17 +202,43 @@ docker run -p 8000:8000 mavhir
 
 ### Ames Mutagenicity Model
 - **Algorithm**: Random Forest Classifier
-- **Features**: ~200 Mordred molecular descriptors
-- **Training Data**: 6,500+ compounds from literature
-- **Performance**: 88% accuracy, 0.91 AUC-ROC
+- **Features**: 549 Mordred molecular descriptors (variance/correlation-filtered on the training split only)
+- **Training Data**: 6,506 compounds from the Hansen et al. (2009) benchmark (http://doc.ml.tu-berlin.de/toxbenchmark/), minus 14 organochlorine pesticides deliberately held out (see Probe Set below)
+- **Performance (held-out test — the authors' own predefined fold, not an arbitrary split)**: 81.9% accuracy, 0.883 AUC-ROC, 82.8% precision, 81.1% recall
 - **Endpoint**: Bacterial reverse mutation (Salmonella typhimurium)
 
 ### Carcinogenicity Model
 - **Algorithm**: Gradient Boosting Classifier
-- **Features**: ~180 Mordred molecular descriptors  
-- **Training Data**: 1,200+ compounds from NTP/CPDB
-- **Performance**: 76% accuracy, 0.82 AUC-ROC
+- **Features**: 552 Mordred molecular descriptors (variance/correlation-filtered on the training split only)
+- **Training Data**: 1,447 compounds from CPDB (Carcinogenic Potency Database), labeled per the database's own legend across all species sheets, minus 22 organochlorine pesticides deliberately held out — see `data/raw/README.md` for full methodology
+- **Performance (held-out test, fresh stratified split)**: 67.8% accuracy, 0.730 AUC-ROC, 69.3% precision, 69.9% recall
 - **Endpoint**: 2-year rodent bioassays
+
+These numbers replace an earlier version of this README that cited different figures (88%/0.91 AUC for Ames, 76%/0.82 AUC for carcinogenicity, on claimed but never-actually-wired-in datasets). The models were retrained from scratch on the real, documented datasets above once that discrepancy was found — see `docs/gnn_extension_design.md` Section 0 for the full account.
+
+### GNN comparison and the organochlorine probe set
+
+A GNN (PyTorch Geometric, `app/gnn/`) was trained on the identical splits above for direct comparison, evaluated across 5 seeds (mean ± std, not a single run):
+
+| Task | Metric | RF / GBM baseline | GNN |
+|---|---|---|---|
+| Ames | Accuracy | 81.9% | 80.1% ± 0.5% |
+| Ames | AUC-ROC | 0.883 | 0.874 ± 0.005 |
+| Carcinogenicity | Accuracy | 67.8% | 66.6% ± 4.2% |
+| Carcinogenicity | AUC-ROC | 0.730 | 0.739 ± 0.027 |
+
+**The 14 (Ames) / 22 (carcinogenicity) organochlorine pesticide compounds above are not a random holdout — they were deliberately excluded from train/val entirely** (`data/processed/organochlorine_probe_set.json`), after an earlier check found that a random split had put 6 of 7 originally spot-checked pesticide compounds into training data by chance, invalidating a naive generalization test. Result on this genuinely unseen compound class:
+
+| Task | Metric | Baseline (RF/GBM) | GNN |
+|---|---|---|---|
+| Ames probe (n=14, 12 neg/2 pos) | Accuracy | 85.7% | 85.7% |
+| Ames probe | AUC-ROC | 0.250 | 0.625 |
+| Carcinogenicity probe (n=22, 6 neg/16 pos) | Accuracy | 54.5% | 68.2% |
+| Carcinogenicity probe | AUC-ROC | 0.651 | 0.547 |
+
+Both the Ames RF and Ames GNN predict **non-mutagenic for every one of the 14 held-out organochlorines**, missing both true positives — the 85.7% accuracy is a base-rate artifact, not genuine discrimination. On carcinogenicity, the GNN's higher raw accuracy is similarly misleading (specificity of just 16.7% on a majority-positive set); by AUC-ROC and MCC the GBM baseline is actually more discriminative. **Neither architecture reliably generalizes to this compound class** — moving to a GNN does not clearly close the organochlorine under-prediction gap the original research identified. Given the small probe set sizes (particularly n=14 with only 2 positives for Ames), the specific AUC rankings should be read as suggestive, not conclusive; the robust part of the finding is the identical degenerate binary behavior on Ames.
+
+**From-scratch validation**: a second GNN (`app/gnn/model_scratch.py`) was built without PyTorch Geometric's `MessagePassing`/conv layers — message passing and pooling implemented directly with `index_add_` scatter operations — to confirm the library model's results reflect real understanding of the mechanism. Standard-test performance is close (Ames: 79.2% acc / 0.869 AUC vs library's 80.1% / 0.874; CPDB: 65.0% / 0.734 vs 66.6% / 0.739), and on the Ames probe set it reproduces the **identical** degenerate behavior (non-mutagenic for all 14, MCC 0) — a third independent model landing on the same failure mode is stronger evidence this is a real property of the problem, not an artifact of one implementation.
 
 ## 🔧 Configuration
 

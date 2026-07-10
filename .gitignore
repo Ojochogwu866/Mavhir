@@ -73,8 +73,15 @@ logs/
 *.joblib
 *.h5
 *.model
+*.pt
 app/models/*.pkl
 app/models/*.joblib
+app/models/*.pt
+
+# Computed Mordred descriptor caches -- large (tens of MB), regenerable via
+# app/models/compute_descriptors.py from data/raw/. Not covered by *.pkl since
+# these live under data/processed/, but same principle applies.
+data/processed/*.pkl
 
 .ipynb_checkpoints
 
@@ -89,3 +96,6 @@ tmp/
 temp/
 *.tmp
 *.temp
+
+# Internal working design doc -- not intended for the public repo
+docs/gnn_extension_design.md
